@@ -22,6 +22,13 @@ To ensure this portfolio appeals to mid/senior-level tech recruiters, you MUST s
 5. **SOLID Principles:** Adhere strictly to the Single Responsibility Principle (SRP). If a class or method is doing more than one thing, split it immediately.
 
 ## Documentation (Source of Truth)
-The Product Requirements Document (PRD), Technical Design Document (TDD), and Database Schemas (ERD) are stored in the `/docs` directory. 
-- **CRITICAL:** You MUST read the relevant files in the `/docs` directory before generating any migrations, models, or core logic.
-- Do not assume or invent table structures, user flows, or API contracts. Always strictly follow the specifications written in these documents.
+The Product Requirements Document (PRD), Technical Design Document (TDD), Design Guidelines (DESIGN), and Database Schemas (ERD) are stored in the `/docs` directory. 
+- **CRITICAL:** You MUST read the relevant files in the `/docs` directory (`PRD.md`, `TDD.md`, `DESIGN.md`) before generating any migrations, models, core logic, or UI templates.
+- Do not assume or invent table structures, user flows, API contracts, or UI layouts. Always strictly follow the specifications written in these documents.
+
+<!-- antislop:start -->
+## antislop (UI & Frontend Standards)
+For any UI, Blade templates, styling, or copy work:
+1. Always read and enforce `docs/DESIGN.md` as the design direction.
+2. Follow the `/antislop` guidelines: No generic AI slop, no em dashes (`—`), strict WCAG AA contrast (4.5:1), no dead links/buttons, real working forms, and full mobile responsiveness.
+<!-- antislop:end -->

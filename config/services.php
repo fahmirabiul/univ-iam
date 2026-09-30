@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'redis_channels' => [
+        'user_profile_updated' => env('REDIS_CHANNEL_USER_PROFILE_UPDATED', 'university.user.profile_updated'),
+    ],
+
 ];

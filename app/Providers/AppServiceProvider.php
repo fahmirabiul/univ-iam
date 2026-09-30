@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\UserProfile;
+use App\Observers\UserProfileObserver;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -22,5 +24,8 @@ class AppServiceProvider extends ServiceProvider
     {
         // Disable strict POSIX key permissions check for Windows/Docker volume mounts
         Passport::$validateKeyPermissions = false;
+
+        // Register Model Observers
+        UserProfile::observe(UserProfileObserver::class);
     }
 }

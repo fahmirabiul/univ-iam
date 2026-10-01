@@ -70,4 +70,28 @@ class User extends Authenticatable
         return $this->belongsToMany(Role::class, 'user_roles', 'user_id', 'role_id')
             ->withTimestamps();
     }
+
+    /**
+     * Check if the user has a specific role.
+     */
+    public function hasRole(string $role): bool
+    {
+        return $this->hasAnyRole($role);
+    }
+
+    /**
+     * Check if the user has any of the given roles.
+     *
+     * @param  array<int, string>|string  ...$roles
+     */
+    public function hasAnyRole(array|string ...$roles): bool
+    {
+        $flattenedRoles = collect($roles)->flatten()->all();
+
+        if ($this->relationLoaded('roles')) {
+            return $this->roles->pluck('name')->intersect($flattenedRoles)->isNotEmpty();
+        }
+
+        return $this->roles()->whereIn('name', $flattenedRoles)->exists();
+    }
 }

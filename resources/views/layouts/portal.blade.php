@@ -87,23 +87,37 @@
     <nav class="navbar navbar-expand-lg navbar-portal sticky-top py-3">
         <div class="container-xxl">
             <!-- Brand -->
-            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ route('portal') }}">
-                <span class="text-primary">
-                    <svg width="32" height="24" viewBox="0 0 32 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path fill-rule="evenodd" clip-rule="evenodd" d="M0.00172773 0V6.85398C0.00172773 6.85398 -0.133178 9.01207 1.98092 10.8388L13.6912 21.9964L19.7809 21.9181L18.8042 9.88248L16.4951 7.17289L9.23799 0H0.00172773Z" fill="currentColor" />
-                        <path fill-rule="evenodd" clip-rule="evenodd" d="M7.77295 16.3566L23.6563 0H32V6.88383C32 6.88383 31.8262 9.17836 30.6591 10.4057L19.7824 22H13.6938L7.77295 16.3566Z" fill="currentColor" />
-                    </svg>
-                </span>
-                <span class="fw-bold fs-5 text-heading">Univ IAM</span>
-                <span class="badge bg-label-primary ms-1 d-none d-sm-inline-block">Portal SSO</span>
-            </a>
+            <div class="d-flex align-items-center gap-3">
+                <a class="navbar-brand d-flex align-items-center gap-2 m-0" href="{{ route('portal') }}">
+                    <span class="text-primary">
+                        <svg width="32" height="24" viewBox="0 0 32 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" clip-rule="evenodd" d="M0.00172773 0V6.85398C0.00172773 6.85398 -0.133178 9.01207 1.98092 10.8388L13.6912 21.9964L19.7809 21.9181L18.8042 9.88248L16.4951 7.17289L9.23799 0H0.00172773Z" fill="currentColor" />
+                            <path fill-rule="evenodd" clip-rule="evenodd" d="M7.77295 16.3566L23.6563 0H32V6.88383C32 6.88383 31.8262 9.17836 30.6591 10.4057L19.7824 22H13.6938L7.77295 16.3566Z" fill="currentColor" />
+                        </svg>
+                    </span>
+                    <span class="fw-bold fs-5 text-heading">Univ IAM</span>
+                </a>
+
+                @auth
+                    @if(auth()->user()->hasAnyRole('super_admin', 'admin_sdm'))
+                        <div class="d-none d-md-flex align-items-center gap-2 ms-3 ps-3 border-start">
+                            <a href="{{ route('portal') }}" class="btn btn-sm {{ request()->routeIs('portal') ? 'btn-primary' : 'btn-outline-secondary' }} px-3">
+                                <i class="icon-base ti tabler-apps me-1"></i>Portal
+                            </a>
+                            <a href="{{ route('admin.users.index') }}" class="btn btn-sm {{ request()->routeIs('admin.*') ? 'btn-primary' : 'btn-outline-secondary' }} px-3">
+                                <i class="icon-base ti tabler-users-group me-1"></i>Kelola Sivitas
+                            </a>
+                        </div>
+                    @endif
+                @endauth
+            </div>
 
             <!-- Right Profile Dropdown -->
             <div class="d-flex align-items-center gap-3">
                 <div class="text-end d-none d-md-block">
-                    <div class="fw-semibold text-heading small">{{ auth()->user()->profile->nama_lengkap ?? auth()->user()->email }}</div>
+                    <div class="fw-semibold text-heading small">{{ auth()->user()->profile?->nama_lengkap ?? auth()->user()->email }}</div>
                     <div class="text-muted" style="font-size: 0.75rem;">
-                        {{ auth()->user()->profile->nomor_induk ? auth()->user()->profile->nomor_induk . ' • ' : '' }}
+                        {{ auth()->user()->profile?->nomor_induk ? auth()->user()->profile->nomor_induk . ' • ' : '' }}
                         <span class="text-uppercase fw-semibold text-primary">{{ auth()->user()->roles->first()?->name ?? 'User' }}</span>
                     </div>
                 </div>
@@ -111,12 +125,12 @@
                 <div class="dropdown">
                     <button class="btn btn-link p-0 border-0 text-decoration-none dropdown-toggle hide-arrow" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <div class="avatar-initial">
-                            {{ strtoupper(substr(auth()->user()->profile->nama_lengkap ?? auth()->user()->email, 0, 2)) }}
+                            {{ strtoupper(substr(auth()->user()->profile?->nama_lengkap ?? auth()->user()->email, 0, 2)) }}
                         </div>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm mt-2">
                         <li class="px-3 py-2 border-bottom">
-                            <div class="fw-bold text-heading">{{ auth()->user()->profile->nama_lengkap ?? auth()->user()->email }}</div>
+                            <div class="fw-bold text-heading">{{ auth()->user()->profile?->nama_lengkap ?? auth()->user()->email }}</div>
                             <small class="text-muted">{{ auth()->user()->email }}</small>
                         </li>
                         <li>

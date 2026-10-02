@@ -116,6 +116,7 @@
                                         data-bs-target="#modalUpdateStatus"
                                         data-user-id="{{ $user->id }}"
                                         data-user-name="{{ $user->profile?->nama_lengkap ?? $user->email }}"
+                                        data-role="{{ $user->roles->first()?->name ?? 'dosen' }}"
                                         data-status="{{ $user->profile?->status_akademik ?? 'aktif' }}"
                                         data-active="{{ $user->is_active ? '1' : '0' }}"
                                         data-action-url="{{ route('admin.users.update_status', $user) }}">
@@ -170,13 +171,16 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const modalUpdateStatus = document.getElementById('modalUpdateStatus');
+        const statusOptions = @json($statusOptions ?? []);
+
         if (modalUpdateStatus) {
             modalUpdateStatus.addEventListener('show.bs.modal', function (event) {
                 const button = event.relatedTarget;
                 if (!button) return;
 
                 const userName = button.getAttribute('data-user-name') || '';
-                const status = button.getAttribute('data-status') || 'aktif';
+                const userRole = button.getAttribute('data-role') || 'dosen';
+                const currentStatus = button.getAttribute('data-status') || 'aktif';
                 const isActive = button.getAttribute('data-active') === '1';
                 const actionUrl = button.getAttribute('data-action-url') || '';
 
@@ -186,9 +190,20 @@
                 const activeCheckbox = modalUpdateStatus.querySelector('#modalStatusIsActive');
 
                 if (form) form.action = actionUrl;
-                if (nameEl) nameEl.textContent = userName;
-                if (statusSelect) statusSelect.value = status;
+                if (nameEl) nameEl.textContent = userName + ' (' + userRole.toUpperCase() + ')';
                 if (activeCheckbox) activeCheckbox.checked = isActive;
+
+                if (statusSelect) {
+                    statusSelect.innerHTML = '';
+                    const roleOpts = statusOptions[userRole] || statusOptions['dosen'] || { aktif: 'Aktif' };
+                    for (const [val, label] of Object.entries(roleOpts)) {
+                        const optEl = document.createElement('option');
+                        optEl.value = val;
+                        optEl.textContent = label;
+                        if (val === currentStatus) optEl.selected = true;
+                        statusSelect.appendChild(optEl);
+                    }
+                }
             });
         }
     });

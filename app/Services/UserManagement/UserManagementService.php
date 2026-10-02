@@ -7,6 +7,7 @@ namespace App\Services\UserManagement;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Services\Academic\AcademicMasterDataService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\Hash;
 
 class UserManagementService
 {
+    public function __construct(
+        private readonly AcademicMasterDataService $academicService,
+    ) {}
+
     /**
      * Retrieve paginated users with relationships and optional search/filters.
      *
@@ -58,6 +63,8 @@ class UserManagementService
     public function createUser(array $data): User
     {
         return DB::transaction(function () use ($data): User {
+            $roleName = (string) $data['role'];
+
             // 1. Create Core Authentication User (UUID PK)
             /** @var User $user */
             $user = User::create([
@@ -67,18 +74,41 @@ class UserManagementService
             ]);
 
             // 2. Attach Global Role
-            $role = Role::where('name', $data['role'])->firstOrFail();
+            $role = Role::where('name', $roleName)->firstOrFail();
             $user->roles()->attach($role->id);
 
-            // 3. Create Master Demographic Profile (Triggers UserProfileObserver::created)
+            // 3. Resolve Role-Specific Demographic Data
+            $fakultas = null;
+            $programStudi = null;
+            $unitKerja = null;
+            $statusAkademik = $data['status_akademik'] ?? 'aktif';
+
+            if (in_array($roleName, ['dosen', 'mahasiswa'], true)) {
+                $programStudi = $data['program_studi'] ?? null;
+                $fakultas = $data['fakultas']
+                    ?? ($programStudi ? $this->academicService->getFacultyByProgram($programStudi) : null);
+            } else {
+                $unitKerja = $data['unit_kerja'] ?? null;
+            }
+
+            // 4. Resolve or Auto-Generate Nomor Induk
+            $nomorInduk = ! empty($data['nomor_induk'])
+                ? (string) $data['nomor_induk']
+                : $this->academicService->generateNomorInduk(
+                    role: $roleName,
+                    programStudi: $programStudi,
+                    unitKerja: $unitKerja,
+                );
+
+            // 5. Create Master Demographic Profile (Triggers UserProfileObserver::created)
             UserProfile::create([
                 'user_id' => $user->id,
                 'nama_lengkap' => $data['nama_lengkap'],
-                'nomor_induk' => $data['nomor_induk'] ?? null,
-                'unit_kerja' => $data['unit_kerja'] ?? null,
-                'fakultas' => $data['fakultas'] ?? null,
-                'program_studi' => $data['program_studi'] ?? null,
-                'status_akademik' => $data['status_akademik'] ?? 'aktif',
+                'nomor_induk' => $nomorInduk,
+                'unit_kerja' => $unitKerja,
+                'fakultas' => $fakultas,
+                'program_studi' => $programStudi,
+                'status_akademik' => $statusAkademik,
             ]);
 
             return $user->load(['profile', 'roles']);

@@ -24,7 +24,7 @@ class UpdateUserStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status_akademik' => ['required', 'string', 'in:aktif,cuti,studi_lanjut,non_aktif'],
+            'status_akademik' => ['required', 'string', 'in:aktif,cuti,studi_lanjut,pensiun,keluar,lulus,drop_out,resign,non_aktif'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

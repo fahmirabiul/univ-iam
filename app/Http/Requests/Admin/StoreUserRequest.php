@@ -32,7 +32,7 @@ class StoreUserRequest extends FormRequest
             'unit_kerja' => ['nullable', 'string', 'max:255'],
             'fakultas' => ['nullable', 'string', 'max:255'],
             'program_studi' => ['nullable', 'string', 'max:255'],
-            'status_akademik' => ['nullable', 'string', 'in:aktif,cuti,studi_lanjut,non_aktif'],
+            'status_akademik' => ['nullable', 'string', 'in:aktif,cuti,studi_lanjut,pensiun,keluar,lulus,drop_out,resign,non_aktif'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

@@ -18,6 +18,7 @@ class UserController extends Controller
 {
     public function __construct(
         private readonly UserManagementService $userManagementService,
+        private readonly \App\Services\Academic\AcademicMasterDataService $academicService,
     ) {}
 
     /**
@@ -38,6 +39,10 @@ class UserController extends Controller
             'users' => $users,
             'roles' => $roles,
             'filters' => $filters,
+            'faculties' => $this->academicService->getFaculties(),
+            'studyPrograms' => $this->academicService->getStudyProgramsGrouped(),
+            'workUnits' => $this->academicService->getWorkUnits(),
+            'statusOptions' => \App\Services\Academic\AcademicMasterDataService::STATUS_OPTIONS,
         ]);
     }
 

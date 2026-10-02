@@ -104,8 +104,11 @@
                             <a href="{{ route('portal') }}" class="btn btn-sm {{ request()->routeIs('portal') ? 'btn-primary' : 'btn-outline-secondary' }} px-3">
                                 <i class="icon-base ti tabler-apps me-1"></i>Portal
                             </a>
-                            <a href="{{ route('admin.users.index') }}" class="btn btn-sm {{ request()->routeIs('admin.*') ? 'btn-primary' : 'btn-outline-secondary' }} px-3">
+                            <a href="{{ route('admin.users.index') }}" class="btn btn-sm {{ request()->routeIs('admin.users.*') ? 'btn-primary' : 'btn-outline-secondary' }} px-3">
                                 <i class="icon-base ti tabler-users-group me-1"></i>Kelola Sivitas
+                            </a>
+                            <a href="{{ route('admin.clients.index') }}" class="btn btn-sm {{ request()->routeIs('admin.clients.*') ? 'btn-primary' : 'btn-outline-secondary' }} px-3">
+                                <i class="icon-base ti tabler-key me-1"></i>Klien OAuth2
                             </a>
                         </div>
                     @endif

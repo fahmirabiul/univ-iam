@@ -25,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
         // Disable strict POSIX key permissions check for Windows/Docker volume mounts
         Passport::$validateKeyPermissions = false;
 
+        // Custom OAuth2 Authorization Consent View (Vuexy Theme)
+        Passport::authorizationView('auth.oauth.authorize');
+
         // Register Model Observers
         UserProfile::observe(UserProfileObserver::class);
     }

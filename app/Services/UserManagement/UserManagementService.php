@@ -73,9 +73,14 @@ class UserManagementService
                 'is_active' => $data['is_active'] ?? true,
             ]);
 
-            // 2. Attach Global Role
+            // 2. Attach Primary Civitas Role & Optional Admin Roles
             $role = Role::where('name', $roleName)->firstOrFail();
             $user->roles()->attach($role->id);
+
+            if (! empty($data['admin_roles'])) {
+                $adminRoles = Role::whereIn('name', (array) $data['admin_roles'])->get();
+                $user->roles()->syncWithoutDetaching($adminRoles->pluck('id'));
+            }
 
             // 3. Resolve Role-Specific Demographic Data
             $fakultas = null;
@@ -151,5 +156,28 @@ class UserManagementService
     public function deleteUser(User $user): bool
     {
         return (bool) $user->delete();
+    }
+
+    /**
+     * Update administrative roles assigned to a user while preserving civitas identity role.
+     *
+     * @param  array<int, string>  $adminRoleNames
+     */
+    public function updateUserAdminRoles(User $user, array $adminRoleNames): User
+    {
+        return DB::transaction(function () use ($user, $adminRoleNames): User {
+            $civitasRole = $user->getCivitasRole();
+            $civitasRoleId = $civitasRole?->id;
+
+            $targetAdminRoleIds = Role::whereIn('name', $adminRoleNames)->pluck('id');
+
+            $allRoleIds = $civitasRoleId
+                ? $targetAdminRoleIds->push($civitasRoleId)->unique()->values()
+                : $targetAdminRoleIds->unique()->values();
+
+            $user->roles()->sync($allRoleIds);
+
+            return $user->fresh(['profile', 'roles']);
+        });
     }
 }

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
+use App\Http\Requests\Admin\UpdateUserRolesRequest;
 use App\Http\Requests\Admin\UpdateUserStatusRequest;
 use App\Models\Role;
 use App\Models\User;
@@ -34,10 +35,14 @@ class UserController extends Controller
 
         $users = $this->userManagementService->getPaginatedUsers($filters, 10);
         $roles = Role::orderBy('name')->get();
+        $civitasRoles = Role::civitas()->orderBy('name')->get();
+        $adminRoles = Role::admin()->orderBy('name')->get();
 
         return view('admin.users.index', [
             'users' => $users,
             'roles' => $roles,
+            'civitasRoles' => $civitasRoles,
+            'adminRoles' => $adminRoles,
             'filters' => $filters,
             'faculties' => $this->academicService->getFaculties(),
             'studyPrograms' => $this->academicService->getStudyProgramsGrouped(),
@@ -72,6 +77,19 @@ class UserController extends Controller
         return redirect()
             ->route('admin.users.index')
             ->with('success', 'Status sivitas berhasil diperbarui dan disinkronkan ke jaringan kampus.');
+    }
+
+    /**
+     * Update administrative roles assigned to the specified user.
+     */
+    public function updateRoles(UpdateUserRolesRequest $request, User $user): RedirectResponse
+    {
+        $adminRoles = (array) ($request->validated('admin_roles') ?? []);
+        $this->userManagementService->updateUserAdminRoles($user, $adminRoles);
+
+        return redirect()
+            ->route('admin.users.index')
+            ->with('success', 'Hak akses peran admin pengguna berhasil diperbarui.');
     }
 
     /**

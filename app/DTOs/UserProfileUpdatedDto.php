@@ -24,7 +24,7 @@ final class UserProfileUpdatedDto implements JsonSerializable
     public static function fromModel(UserProfile $profile): self
     {
         $user = $profile->relationLoaded('user') ? $profile->user : $profile->user()->with('roles')->first();
-        $primaryRole = $user?->roles?->first()?->name ?? 'user';
+        $primaryRole = $user?->getCivitasRole()?->name ?? ($user?->roles?->first()?->name ?? 'user');
 
         return new self(
             ssoId: (string) $profile->user_id,

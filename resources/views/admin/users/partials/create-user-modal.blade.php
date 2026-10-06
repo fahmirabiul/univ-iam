@@ -29,10 +29,10 @@
                         </div>
 
                         <div class="col-12 col-md-6">
-                            <label for="createRole" class="form-label fw-semibold text-heading small">Peran Global <span class="text-danger">*</span></label>
+                            <label for="createRole" class="form-label fw-semibold text-heading small">Identitas Sivitas (Peran Utama) <span class="text-danger">*</span></label>
                             <select id="createRole" name="role" class="form-select" required>
-                                <option value="" disabled selected>Pilih Peran Global</option>
-                                @foreach($roles as $r)
+                                <option value="" disabled selected>Pilih Identitas Sivitas</option>
+                                @foreach($civitasRoles ?? $roles->where('type', 'civitas') as $r)
                                     <option value="{{ $r->name }}" {{ old('role') === $r->name ? 'selected' : '' }}>
                                         {{ ucwords(str_replace('_', ' ', $r->name)) }}
                                     </option>
@@ -43,6 +43,22 @@
                         <div class="col-12 col-md-6">
                             <label for="createNamaLengkap" class="form-label fw-semibold text-heading small">Nama Lengkap (dengan Gelar) <span class="text-danger">*</span></label>
                             <input type="text" id="createNamaLengkap" name="nama_lengkap" class="form-control" placeholder="Contoh: Dr. Budi Santoso, M.T." value="{{ old('nama_lengkap') }}" required />
+                        </div>
+
+                        <!-- Sub-Section: Peran Administratif Tambahan -->
+                        <div class="col-12 d-none" id="sectionAdminRoles">
+                            <label class="form-label fw-semibold text-heading small">Peran Administratif Tambahan (Hak Akses Khusus)</label>
+                            <div class="d-flex flex-wrap gap-4 p-3 bg-light rounded-3 border">
+                                @foreach($adminRoles ?? $roles->where('type', 'admin') as $ar)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="admin_roles[]" value="{{ $ar->name }}" id="createAdminRole_{{ $ar->name }}" />
+                                        <label class="form-check-label fw-medium small" for="createAdminRole_{{ $ar->name }}">
+                                            {{ ucwords(str_replace('_', ' ', $ar->name)) }}
+                                        </label>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div class="form-text small">Role admin akan menempel pada user ini (contoh: Karyawan memiliki role Admin LPPM atau Admin SDM).</div>
                         </div>
 
                         <!-- Section: Demografi Master Data -->
@@ -147,6 +163,7 @@
         const sectionUnitKerja = document.getElementById('sectionUnitKerja');
         const sectionStatus = document.getElementById('sectionStatusAkademik');
         const sectionNomorInduk = document.getElementById('sectionNomorInduk');
+        const sectionAdminRoles = document.getElementById('sectionAdminRoles');
         const badgeRoleHint = document.getElementById('badgeRoleHint');
 
         const statusOptions = @json($statusOptions ?? []);
@@ -158,6 +175,14 @@
             badgeRoleHint.textContent = 'Konfigurasi untuk: ' + role.toUpperCase();
             sectionStatus.classList.remove('d-none');
             sectionNomorInduk.classList.remove('d-none');
+
+            // Show admin role assignment for employees / staff / lecturers
+            if (role === 'karyawan' || role === 'dosen') {
+                sectionAdminRoles.classList.remove('d-none');
+            } else {
+                sectionAdminRoles.classList.add('d-none');
+                sectionAdminRoles.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            }
 
             // Populate status options for role
             statusSelect.innerHTML = '';

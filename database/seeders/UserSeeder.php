@@ -21,10 +21,10 @@ class UserSeeder extends Seeder
         $defaultPassword = Hash::make('password');
 
         $usersData = [
-            // Super Admin
+            // Super Admin (Karyawan + Super Admin)
             [
                 'email' => 'superadmin@univ.ac.id',
-                'role' => 'super_admin',
+                'roles' => ['karyawan', 'super_admin'],
                 'profile' => [
                     'nama_lengkap' => 'Super Administrator',
                     'nomor_induk' => 'SA-001',
@@ -34,10 +34,10 @@ class UserSeeder extends Seeder
                     'status_akademik' => 'aktif',
                 ],
             ],
-            // Admin SDM
+            // Admin SDM (Karyawan + Admin SDM)
             [
                 'email' => 'sdm@univ.ac.id',
-                'role' => 'admin_sdm',
+                'roles' => ['karyawan', 'admin_sdm'],
                 'profile' => [
                     'nama_lengkap' => 'Budi Santoso, S.Kom.',
                     'nomor_induk' => 'SDM-19850101',
@@ -47,10 +47,23 @@ class UserSeeder extends Seeder
                     'status_akademik' => 'aktif',
                 ],
             ],
+            // Admin LPPM (Karyawan + Admin LPPM)
+            [
+                'email' => 'lppm@univ.ac.id',
+                'roles' => ['karyawan', 'admin_lppm'],
+                'profile' => [
+                    'nama_lengkap' => 'Suryo Utomo, S.T.',
+                    'nomor_induk' => 'LPPM-202001',
+                    'unit_kerja' => 'LPPM',
+                    'fakultas' => null,
+                    'program_studi' => null,
+                    'status_akademik' => 'aktif',
+                ],
+            ],
             // Dosen
             [
                 'email' => 'fahmi.dosen@univ.ac.id',
-                'role' => 'dosen',
+                'roles' => ['dosen'],
                 'profile' => [
                     'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
                     'nomor_induk' => '0412058801',
@@ -62,7 +75,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'email' => 'siti.dosen@univ.ac.id',
-                'role' => 'dosen',
+                'roles' => ['dosen'],
                 'profile' => [
                     'nama_lengkap' => 'Dr. Siti Aminah, M.T.',
                     'nomor_induk' => '0415088902',
@@ -74,7 +87,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'email' => 'hendra.dosen@univ.ac.id',
-                'role' => 'dosen',
+                'roles' => ['dosen'],
                 'profile' => [
                     'nama_lengkap' => 'Hendra Wijaya, S.E., M.M.',
                     'nomor_induk' => '0420118503',
@@ -87,7 +100,7 @@ class UserSeeder extends Seeder
             // Mahasiswa
             [
                 'email' => 'ahmad.mhs@univ.ac.id',
-                'role' => 'mahasiswa',
+                'roles' => ['mahasiswa'],
                 'profile' => [
                     'nama_lengkap' => 'Ahmad Fauzi',
                     'nomor_induk' => '220101001',
@@ -99,7 +112,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'email' => 'dewi.mhs@univ.ac.id',
-                'role' => 'mahasiswa',
+                'roles' => ['mahasiswa'],
                 'profile' => [
                     'nama_lengkap' => 'Dewi Lestari',
                     'nomor_induk' => '220102015',
@@ -111,7 +124,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'email' => 'rizky.mhs@univ.ac.id',
-                'role' => 'mahasiswa',
+                'roles' => ['mahasiswa'],
                 'profile' => [
                     'nama_lengkap' => 'Rizky Pratama',
                     'nomor_induk' => '230201045',
@@ -124,7 +137,7 @@ class UserSeeder extends Seeder
             // Karyawan / Tendik
             [
                 'email' => 'rina.staff@univ.ac.id',
-                'role' => 'karyawan',
+                'roles' => ['karyawan'],
                 'profile' => [
                     'nama_lengkap' => 'Rina Wulandari, A.Md.',
                     'nomor_induk' => 'TDK-201801',
@@ -136,7 +149,7 @@ class UserSeeder extends Seeder
             ],
             [
                 'email' => 'agus.staff@univ.ac.id',
-                'role' => 'karyawan',
+                'roles' => ['karyawan'],
                 'profile' => [
                     'nama_lengkap' => 'Agus Setiawan, S.Sos.',
                     'nomor_induk' => 'TDK-201904',
@@ -159,10 +172,9 @@ class UserSeeder extends Seeder
                     ]
                 );
 
-                $role = Role::where('name', $item['role'])->first();
-                if ($role) {
-                    $user->roles()->syncWithoutDetaching([$role->id]);
-                }
+                $roleNames = (array) ($item['roles'] ?? [$item['role']]);
+                $roleIds = Role::whereIn('name', $roleNames)->pluck('id');
+                $user->roles()->syncWithoutDetaching($roleIds);
 
                 UserProfile::updateOrCreate(
                     ['user_id' => $user->id],

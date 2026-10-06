@@ -5,6 +5,7 @@
     $config = match ($normalized) {
         'super_admin' => ['class' => 'bg-label-primary', 'label' => 'Super Admin', 'icon' => 'tabler-shield-check'],
         'admin_sdm' => ['class' => 'bg-label-primary', 'label' => 'Admin SDM', 'icon' => 'tabler-user-cog'],
+        'admin_lppm' => ['class' => 'bg-label-info', 'label' => 'Admin LPPM', 'icon' => 'tabler-microscope'],
         'dosen' => ['class' => 'bg-label-info', 'label' => 'Dosen', 'icon' => 'tabler-certificate'],
         'mahasiswa' => ['class' => 'bg-label-success', 'label' => 'Mahasiswa', 'icon' => 'tabler-user'],
         'karyawan' => ['class' => 'bg-label-warning', 'label' => 'Karyawan', 'icon' => 'tabler-briefcase'],

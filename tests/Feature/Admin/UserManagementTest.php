@@ -20,24 +20,30 @@ class UserManagementTest extends TestCase
 
     private Role $adminRole;
 
+    private Role $adminLppmRole;
+
     private Role $dosenRole;
 
     private Role $mahasiswaRole;
+
+    private Role $karyawanRole;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->adminRole = Role::create(['name' => 'admin_sdm', 'description' => 'Admin SDM']);
-        $this->dosenRole = Role::create(['name' => 'dosen', 'description' => 'Dosen']);
-        $this->mahasiswaRole = Role::create(['name' => 'mahasiswa', 'description' => 'Mahasiswa']);
+        $this->adminRole = Role::create(['name' => 'admin_sdm', 'type' => 'admin', 'description' => 'Admin SDM']);
+        $this->adminLppmRole = Role::create(['name' => 'admin_lppm', 'type' => 'admin', 'description' => 'Admin LPPM']);
+        $this->dosenRole = Role::create(['name' => 'dosen', 'type' => 'civitas', 'description' => 'Dosen']);
+        $this->mahasiswaRole = Role::create(['name' => 'mahasiswa', 'type' => 'civitas', 'description' => 'Mahasiswa']);
+        $this->karyawanRole = Role::create(['name' => 'karyawan', 'type' => 'civitas', 'description' => 'Karyawan']);
 
         $this->adminSdm = User::create([
             'email' => 'admin.sdm@univ.ac.id',
             'password' => bcrypt('password123'),
             'is_active' => true,
         ]);
-        $this->adminSdm->roles()->attach($this->adminRole->id);
+        $this->adminSdm->roles()->attach([$this->karyawanRole->id, $this->adminRole->id]);
 
         UserProfile::create([
             'user_id' => $this->adminSdm->id,
@@ -239,5 +245,69 @@ class UserManagementTest extends TestCase
         // Attempt Delete
         $deleteResponse = $this->actingAs($dosen)->delete("/admin/users/{$this->adminSdm->id}");
         $deleteResponse->assertForbidden();
+    }
+
+    public function test_admin_can_create_karyawan_with_admin_roles_such_as_admin_lppm(): void
+    {
+        $response = $this->actingAs($this->adminSdm)->post('/admin/users', [
+            'email' => 'staff.lppm@univ.ac.id',
+            'password' => 'password12345',
+            'role' => 'karyawan',
+            'admin_roles' => ['admin_lppm'],
+            'nama_lengkap' => 'Staff LPPM Riset',
+            'unit_kerja' => 'LPPM',
+            'status_akademik' => 'aktif',
+        ]);
+
+        $response->assertRedirect(route('admin.users.index'))
+            ->assertSessionHas('success');
+
+        /** @var User $newUser */
+        $newUser = User::where('email', 'staff.lppm@univ.ac.id')->firstOrFail();
+
+        $this->assertTrue($newUser->hasRole('karyawan'));
+        $this->assertTrue($newUser->hasRole('admin_lppm'));
+        $this->assertSame('karyawan', $newUser->getCivitasRole()?->name);
+        $this->assertSame(['admin_lppm'], $newUser->getAdminRoles()->pluck('name')->all());
+    }
+
+    public function test_admin_can_update_user_admin_roles(): void
+    {
+        /** @var User $karyawan */
+        $karyawan = User::create([
+            'email' => 'karyawan.biasa@univ.ac.id',
+            'password' => bcrypt('password123'),
+            'is_active' => true,
+        ]);
+        $karyawan->roles()->attach($this->karyawanRole->id);
+
+        $this->assertTrue($karyawan->hasRole('karyawan'));
+        $this->assertFalse($karyawan->hasRole('admin_lppm'));
+
+        // Assign admin_lppm and admin_sdm
+        $response = $this->actingAs($this->adminSdm)->put("/admin/users/{$karyawan->id}/roles", [
+            'admin_roles' => ['admin_lppm', 'admin_sdm'],
+        ]);
+
+        $response->assertRedirect(route('admin.users.index'))
+            ->assertSessionHas('success');
+
+        $karyawan->refresh();
+        $this->assertTrue($karyawan->hasRole('karyawan'));
+        $this->assertTrue($karyawan->hasRole('admin_lppm'));
+        $this->assertTrue($karyawan->hasRole('admin_sdm'));
+
+        // Remove admin_sdm, keep admin_lppm
+        $revokeResponse = $this->actingAs($this->adminSdm)->put("/admin/users/{$karyawan->id}/roles", [
+            'admin_roles' => ['admin_lppm'],
+        ]);
+
+        $revokeResponse->assertRedirect(route('admin.users.index'))
+            ->assertSessionHas('success');
+
+        $karyawan->refresh();
+        $this->assertTrue($karyawan->hasRole('karyawan'));
+        $this->assertTrue($karyawan->hasRole('admin_lppm'));
+        $this->assertFalse($karyawan->hasRole('admin_sdm'));
     }
 }

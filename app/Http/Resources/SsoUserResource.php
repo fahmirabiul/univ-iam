@@ -28,12 +28,13 @@ class SsoUserResource extends JsonResource
         /** @var User $user */
         $user = $this->resource;
         $profile = $user->profile;
-        $primaryRole = $user->roles->first();
+        $civitasRole = $user->getCivitasRole();
 
         return [
             'sso_id' => $user->id,
             'email' => $user->email,
-            'role_global' => $primaryRole?->name ?? 'user',
+            'role_global' => $civitasRole?->name ?? 'user',
+            'roles' => $user->roles->pluck('name')->values()->all(),
             'profil' => [
                 'nama_lengkap' => $profile?->nama_lengkap ?? '',
                 'nomor_induk' => $profile?->nomor_induk,

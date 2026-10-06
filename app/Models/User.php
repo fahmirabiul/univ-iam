@@ -94,4 +94,41 @@ class User extends Authenticatable
 
         return $this->roles()->whereIn('name', $flattenedRoles)->exists();
     }
+
+    /**
+     * Get the user's primary civitas/identity role (dosen, mahasiswa, karyawan).
+     */
+    public function getCivitasRole(): ?Role
+    {
+        if ($this->relationLoaded('roles')) {
+            return $this->roles->firstWhere('type', Role::TYPE_CIVITAS)
+                ?? $this->roles->first(fn (Role $r): bool => in_array($r->name, ['dosen', 'mahasiswa', 'karyawan'], true))
+                ?? $this->roles->first();
+        }
+
+        return $this->roles()->where('type', Role::TYPE_CIVITAS)->first()
+            ?? $this->roles()->whereIn('name', ['dosen', 'mahasiswa', 'karyawan'])->first()
+            ?? $this->roles()->first();
+    }
+
+    /**
+     * Get the administrative roles assigned to the user (e.g. admin_sdm, admin_lppm, super_admin).
+     *
+     * @return \Illuminate\Support\Collection<int, Role>
+     */
+    public function getAdminRoles(): \Illuminate\Support\Collection
+    {
+        if ($this->relationLoaded('roles')) {
+            return $this->roles
+                ->filter(fn (Role $r): bool => $r->type === Role::TYPE_ADMIN || in_array($r->name, ['super_admin', 'admin_sdm', 'admin_lppm'], true))
+                ->values();
+        }
+
+        return $this->roles()
+            ->where(function ($q): void {
+                $q->where('type', Role::TYPE_ADMIN)
+                    ->orWhereIn('name', ['super_admin', 'admin_sdm', 'admin_lppm']);
+            })
+            ->get();
+    }
 }

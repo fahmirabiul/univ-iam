@@ -27,6 +27,8 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', 'exists:roles,name'],
+            'admin_roles' => ['nullable', 'array'],
+            'admin_roles.*' => ['string', 'exists:roles,name'],
             'nama_lengkap' => ['required', 'string', 'max:255'],
             'nomor_induk' => ['nullable', 'string', 'max:50', 'unique:user_profiles,nomor_induk'],
             'unit_kerja' => ['nullable', 'string', 'max:255'],

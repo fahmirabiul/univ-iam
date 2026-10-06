@@ -112,4 +112,32 @@ class UserManagementServiceTest extends TestCase
         $searchPaginator = $this->service->getPaginatedUsers(['search' => 'Citra']);
         $this->assertEquals(1, $searchPaginator->total());
     }
+
+    public function test_service_can_update_user_admin_roles_while_preserving_civitas_role(): void
+    {
+        Role::create(['name' => 'karyawan', 'type' => 'civitas', 'description' => 'Karyawan']);
+        Role::create(['name' => 'admin_lppm', 'type' => 'admin', 'description' => 'Admin LPPM']);
+        Role::create(['name' => 'admin_sdm', 'type' => 'admin', 'description' => 'Admin SDM']);
+
+        $user = $this->service->createUser([
+            'email' => 'staff.test@univ.ac.id',
+            'password' => 'secret12345',
+            'role' => 'karyawan',
+            'admin_roles' => ['admin_lppm'],
+            'nama_lengkap' => 'Staff Tester',
+            'unit_kerja' => 'LPPM',
+            'status_akademik' => 'aktif',
+        ]);
+
+        $this->assertTrue($user->hasRole('karyawan'));
+        $this->assertTrue($user->hasRole('admin_lppm'));
+        $this->assertFalse($user->hasRole('admin_sdm'));
+
+        // Update to add admin_sdm and remove admin_lppm
+        $updatedUser = $this->service->updateUserAdminRoles($user, ['admin_sdm']);
+
+        $this->assertTrue($updatedUser->hasRole('karyawan'));
+        $this->assertTrue($updatedUser->hasRole('admin_sdm'));
+        $this->assertFalse($updatedUser->hasRole('admin_lppm'));
+    }
 }

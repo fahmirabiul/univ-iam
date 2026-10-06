@@ -17,9 +17,10 @@ class PortalController extends Controller
     {
         /** @var User $user */
         $user = $request->user()->loadMissing(['profile', 'roles']);
-        $primaryRole = $user->roles->first()?->name ?? 'user';
+        $primaryRole = $user->getCivitasRole()?->name ?? ($user->roles->first()?->name ?? 'user');
+        $userRoles = $user->roles->pluck('name')->all();
 
-        $apps = $this->getAvailableApplications($primaryRole);
+        $apps = $this->getAvailableApplications($userRoles);
 
         return view('portal.index', [
             'user' => $user,
@@ -30,11 +31,12 @@ class PortalController extends Controller
     }
 
     /**
-     * Get the directory of applications filtered by user role.
+     * Get the directory of applications filtered by user roles.
      *
+     * @param  array<int, string>  $userRoles
      * @return array<int, array<string, mixed>>
      */
-    private function getAvailableApplications(string $role): array
+    private function getAvailableApplications(array $userRoles): array
     {
         $allApps = [
             [
@@ -44,7 +46,7 @@ class PortalController extends Controller
                 'icon' => 'tabler-book-2',
                 'color' => 'primary',
                 'category' => 'Akademik & Riset',
-                'roles' => ['super_admin', 'admin_sdm', 'dosen', 'mahasiswa', 'karyawan'],
+                'roles' => ['super_admin', 'admin_sdm', 'admin_lppm', 'dosen', 'mahasiswa', 'karyawan'],
                 'url' => 'http://localhost:8001',
                 'is_sso' => true,
             ],
@@ -81,8 +83,22 @@ class PortalController extends Controller
                 'url' => '#',
                 'is_sso' => false,
             ],
+            [
+                'id' => 'lppm-portal',
+                'name' => 'Sistem Informasi Riset & LPPM',
+                'description' => 'Pengajuan proposal hibah penelitian, pengabdian masyarakat, dan publikasi ilmiah.',
+                'icon' => 'tabler-microscope',
+                'color' => 'info',
+                'category' => 'Riset & Pengabdian',
+                'roles' => ['super_admin', 'admin_lppm', 'dosen'],
+                'url' => '#',
+                'is_sso' => false,
+            ],
         ];
 
-        return array_values(array_filter($allApps, fn (array $app) => in_array($role, $app['roles'], true)));
+        return array_values(array_filter(
+            $allApps,
+            fn (array $app): bool => ! empty(array_intersect($userRoles, $app['roles']))
+        ));
     }
 }

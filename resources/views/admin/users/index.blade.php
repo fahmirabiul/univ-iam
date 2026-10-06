@@ -57,7 +57,7 @@
                 <tr>
                     <th scope="col" class="py-3 px-4 text-heading fw-semibold small text-uppercase">Pengguna</th>
                     <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Unit / Program Studi</th>
-                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Peran Global</th>
+                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Peran & Hak Akses</th>
                     <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Status Akademik</th>
                     <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Status Akun</th>
                     <th scope="col" class="py-3 px-4 text-end text-heading fw-semibold small text-uppercase">Aksi</th>
@@ -87,9 +87,14 @@
                             </div>
                         </td>
 
-                        <!-- Global Role -->
+                        <!-- Roles (Civitas Identity + Admin Roles) -->
                         <td class="py-3 px-3">
-                            <x-role-badge :role="$user->roles->first()?->name ?? 'user'" />
+                            <div class="d-flex flex-wrap gap-1 align-items-center">
+                                <x-role-badge :role="$user->getCivitasRole()?->name ?? 'user'" />
+                                @foreach($user->getAdminRoles() as $ar)
+                                    <x-role-badge :role="$ar->name" />
+                                @endforeach
+                            </div>
                         </td>
 
                         <!-- Academic Status -->
@@ -109,14 +114,30 @@
                         <!-- Actions -->
                         <td class="py-3 px-4 text-end">
                             <div class="d-flex align-items-center justify-content-end gap-2">
+                                <!-- Trigger Manage Admin Roles Modal (Khusus Karyawan / Dosen) -->
+                                @if(in_array($user->getCivitasRole()?->name, ['karyawan', 'dosen'], true))
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-info fw-semibold px-2 btn-manage-roles"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#modalManageRoles"
+                                            data-user-id="{{ $user->id }}"
+                                            data-user-name="{{ $user->profile?->nama_lengkap ?? $user->email }}"
+                                            data-civitas="{{ $user->getCivitasRole()?->name ?? 'karyawan' }}"
+                                            data-admin-roles="{{ json_encode($user->getAdminRoles()->pluck('name')->all()) }}"
+                                            data-action-url="{{ route('admin.users.update_roles', $user) }}"
+                                            title="Kelola Peran Admin">
+                                        <i class="icon-base ti tabler-user-shield me-1"></i>Role Admin
+                                    </button>
+                                @endif
+
                                 <!-- Trigger Dynamic Status Modal -->
-                                <button type="button" 
-                                        class="btn btn-sm btn-outline-primary fw-semibold px-3 btn-edit-status" 
-                                        data-bs-toggle="modal" 
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary fw-semibold px-3 btn-edit-status"
+                                        data-bs-toggle="modal"
                                         data-bs-target="#modalUpdateStatus"
                                         data-user-id="{{ $user->id }}"
                                         data-user-name="{{ $user->profile?->nama_lengkap ?? $user->email }}"
-                                        data-role="{{ $user->roles->first()?->name ?? 'dosen' }}"
+                                        data-role="{{ $user->getCivitasRole()?->name ?? 'dosen' }}"
                                         data-status="{{ $user->profile?->status_akademik ?? 'aktif' }}"
                                         data-active="{{ $user->is_active ? '1' : '0' }}"
                                         data-action-url="{{ route('admin.users.update_status', $user) }}">
@@ -165,13 +186,43 @@
 <!-- Modal Partials -->
 @include('admin.users.partials.create-user-modal')
 @include('admin.users.partials.update-status-modal')
+@include('admin.users.partials.manage-roles-modal')
 @endsection
 
 @push('page-js')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const modalUpdateStatus = document.getElementById('modalUpdateStatus');
+        const modalManageRoles = document.getElementById('modalManageRoles');
         const statusOptions = @json($statusOptions ?? []);
+
+        if (modalManageRoles) {
+            modalManageRoles.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                if (!button) return;
+
+                const userName = button.getAttribute('data-user-name') || '';
+                const civitasRole = button.getAttribute('data-civitas') || 'karyawan';
+                const actionUrl = button.getAttribute('data-action-url') || '';
+                const activeAdminRoles = JSON.parse(button.getAttribute('data-admin-roles') || '[]');
+
+                const form = modalManageRoles.querySelector('#formManageRoles');
+                const nameEl = modalManageRoles.querySelector('#modalRolesUserName');
+                const civitasBadge = modalManageRoles.querySelector('#modalRolesCivitasBadge');
+
+                if (form) form.action = actionUrl;
+                if (nameEl) nameEl.textContent = userName;
+                if (civitasBadge) {
+                    civitasBadge.innerHTML = `<span class="badge bg-label-warning text-uppercase fw-semibold px-2 py-1">${civitasRole.toUpperCase()}</span>`;
+                }
+
+                // Check or uncheck admin roles checkboxes
+                const checkboxes = modalManageRoles.querySelectorAll('.admin-role-checkbox');
+                checkboxes.forEach(function (cb) {
+                    cb.checked = activeAdminRoles.includes(cb.value);
+                });
+            });
+        }
 
         if (modalUpdateStatus) {
             modalUpdateStatus.addEventListener('show.bs.modal', function (event) {

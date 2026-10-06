@@ -87,4 +87,39 @@ class AdminAccessSecurityTest extends TestCase
 
         $response->assertOk();
     }
+
+    public function test_karyawan_without_admin_role_cannot_access_admin_routes_and_receives_forbidden_403(): void
+    {
+        $karyawanRole = Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
+
+        /** @var User $karyawan */
+        $karyawan = User::create([
+            'email' => 'staff.biasa@univ.ac.id',
+            'password' => bcrypt('password'),
+            'is_active' => true,
+        ]);
+        $karyawan->roles()->attach($karyawanRole->id);
+
+        $response = $this->actingAs($karyawan)->get('/admin/users');
+
+        $response->assertForbidden();
+    }
+
+    public function test_karyawan_with_admin_sdm_role_can_access_admin_routes(): void
+    {
+        $karyawanRole = Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
+        $adminSdmRole = Role::create(['name' => 'admin_sdm', 'description' => 'Admin SDM']);
+
+        /** @var User $karyawanAdmin */
+        $karyawanAdmin = User::create([
+            'email' => 'karyawan.sdm@univ.ac.id',
+            'password' => bcrypt('password'),
+            'is_active' => true,
+        ]);
+        $karyawanAdmin->roles()->attach([$karyawanRole->id, $adminSdmRole->id]);
+
+        $response = $this->actingAs($karyawanAdmin)->get('/admin/users');
+
+        $response->assertOk();
+    }
 }

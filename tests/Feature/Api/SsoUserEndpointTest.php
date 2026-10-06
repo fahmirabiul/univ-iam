@@ -56,6 +56,7 @@ class SsoUserEndpointTest extends TestCase
                 'sso_id',
                 'email',
                 'role_global',
+                'roles',
                 'profil' => [
                     'nama_lengkap',
                     'nomor_induk',
@@ -68,6 +69,7 @@ class SsoUserEndpointTest extends TestCase
                 'sso_id' => $user->id,
                 'email' => 'fahmi.dosen@univ.ac.id',
                 'role_global' => 'dosen',
+                'roles' => ['dosen'],
                 'profil' => [
                     'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
                     'nomor_induk' => '0412058801',

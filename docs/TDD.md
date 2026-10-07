@@ -1,7 +1,7 @@
 # TECHNICAL DESIGN DOCUMENT
 
 **1. Deskripsi & Peran Arsitektur**
-Bertindak sebagai *Single Source of Truth* untuk otentikasi (OAuth2 Server) dan demografi pengguna kampus. Sistem ini adalah *Publisher* dalam komunikasi data asinkron.
+Bertindak sebagai *Single Source of Truth* untuk otentikasi (OAuth2 Server) dan master data identitas sivitas kampus. Sistem ini bertindak sebagai *Publisher* dalam sinkronisasi data asinkron berbasis event.
 
 **2. Tech Stack & Infrastructure**
 
@@ -9,61 +9,94 @@ Bertindak sebagai *Single Source of Truth* untuk otentikasi (OAuth2 Server) dan 
 - **Core:** Laravel 13, PHP 8.3.
 - **Authentication:** Laravel Passport (OAuth2 *Authorization Code Grant*).
 - **Message Broker (Publisher):** Redis (Pub/Sub).
-- **Database:** MySQL (Fokus pada tabel kredensial dan master data).
+- **Database:** MySQL (Tabel kredensial, relasi RBAC, unit kerja, dan master data akademik).
 
 **3. Skema Database Utama (ERD Terpusat)**
 
-- `users`: Menyimpan kredensial otentikasi. Menggunakan **UUID** sebagai Primary Key. (Kolom: `id`, `email`, `password`, `is_active`).
-- `roles`: Master data peran (Kolom: `id`, `name` -> Dosen, Mahasiswa, Karyawan).
-- `user_roles` (Pivot): Menghubungkan *user* dengan *role* globalnya.
-- `user_profiles`: Data demografi (Kolom: `user_id`, `nama_lengkap`, `nomor_induk`, `status_akademik`, `fakultas`).
+- `users`: Kredensial akun otentikasi. Menggunakan **UUID** sebagai Primary Key. (Kolom: `id`, `email`, `password`, `is_active`, `is_admin`).
+- `roles`: Master data peran sivitas & sistem (`super_admin`, `dosen`, `mahasiswa`, `karyawan`).
+- `user_roles` (Pivot): Menghubungkan *user* dengan *role* utama sivitasnya.
+- `faculties`: Master data fakultas (`id`, `code`, `name`).
+- `study_programs`: Master data program studi berelasi ke fakultas (`id`, `faculty_id`, `code`, `nim_code`, `name`).
+- `work_units`: Master data unit kerja / lembaga / biro kampus (`id`, `code`, `name`).
+- `user_profiles`: Data profil demografi (`id`, `user_id`, `nama_lengkap`, `nomor_induk`, `work_unit_id`, `study_program_id`).
 
 **4. Design Patterns & Logika Inti**
 
-- **Observer Pattern:** Memantau model `UserProfile`. Jika admin mengubah status dosen (misal dari "Aktif" menjadi "Studi Lanjut"), Observer akan memicu *event* dan mengirim *payload* JSON berisi data terbaru ke *channel* Redis (`university.user.updated`).
-- **Repository Pattern:** Digunakan untuk memisahkan logika *query* master data agar *controller* untuk Portal API tetap bersih.
+- **Observer Pattern:** Memantau model `UserProfile` via `UserProfileObserver`. Setiap perubahan profil memicu *event* dan mempublikasikan payload JSON terbaru ke *channel* Redis (`university.user.profile_updated`).
+- **Unit-Based Authorization:** Hak admin unit ditentukan melalui kombinasi `is_admin = true` pada user dan penempatan `work_unit_id`, sedangkan `super_admin` memiliki akses menyeluruh.
 
 ---
 
 # **API Contract & Event Payload**
 
-Definisikan format URL, *method*, dan respons JSON untuk *endpoint* SSO. Selain itu, catat format JSON (*payload*) yang akan dikirimkan IAM ke Redis saat ada perubahan profil. Ini memastikan Sistem 2 tahu persis bentuk data yang akan diterima.
+### 1. GET /api/user (SSO Profile & Authorization Endpoint)
 
-1. GET http://sso-kampus.test/api/user
+Endpoint ini diakses oleh sistem klien (misal Knowledge Hub) menggunakan *Bearer Token* hasil pertukaran *Authorization Code*.
 
+**Contoh Response - Dosen / Mahasiswa (Akademik):**
 ```json
 {
   "sso_id": "123e4567-e89b-12d3-a456-426614174000",
-  "email": "dosen@kampus.ac.id",
+  "email": "dosen@univ.ac.id",
   "role_global": "dosen",
+  "is_superadmin": false,
+  "is_admin": false,
+  "unit": null,
+  "fakultas": "Fakultas Teknik",
+  "program_studi": "Teknik Informatika",
   "profil": {
-    "nama_lengkap": "Fahmi R.",
-    "nomor_induk": "198001012005011001",
-    "fakultas": "FTI",
-    "program_studi": "Informatika",
-    "status_akademik": "aktif",
+    "nama_lengkap": "Dr. Fahmi R., M.Kom.",
+    "nomor_induk": "202610110001"
   }
 }
 ```
 
-1. Event Payload: Sinkronisasi Redis (Pub/Sub)
+**Contoh Response - Karyawan Admin Unit (contoh: Admin LPPM):**
+```json
+{
+  "sso_id": "987e6543-e21b-43d2-b654-426614174999",
+  "email": "admin.lppm@univ.ac.id",
+  "role_global": "karyawan",
+  "is_superadmin": false,
+  "is_admin": true,
+  "unit": {
+    "id": 3,
+    "kode": "503",
+    "nama": "LPPM"
+  },
+  "fakultas": null,
+  "program_studi": null,
+  "profil": {
+    "nama_lengkap": "Suryo Utomo, S.T.",
+    "nomor_induk": "20265030001"
+  }
+}
+```
 
-Ini adalah pesan (paket) yang diteriakkan oleh Sistem 1 ke *message broker* (Redis) ketika ada perubahan data, agar sistem lain tahu tanpa harus selalu bertanya (*polling*).
+---
+
+### 2. Event Payload: Sinkronisasi Redis (Pub/Sub)
+
+Pesan yang dipublikasikan oleh IAM ke *message broker* (Redis) saat data profil diperbarui:
 
 **Nama Channel (Topik di Redis):** `university.user.profile_updated`
 
 **Bentuk Pesan (Event Payload):**
-Saat Admin SDM mengubah status seorang dosen dari "Aktif" menjadi "Studi Lanjut" lalu menekan tombol *Save* di IAM, Sistem 1 akan mengirim *string* JSON ini ke saluran Redis:
-
 ```json
 {
   "event": "UserProfileUpdated",
-  "timestamp": "2026-09-29T14:10:36Z",
+  "timestamp": "2026-10-07T14:10:36Z",
   "data": {
-    "sso_id": "123e4567-e89b-12d3-a456-426614174000",
-    "nama_lengkap": "Fahmi R.",
-    "status_akademik": "studi_lanjut",
-    "role_global": "dosen"
+    "sso_id": "987e6543-e21b-43d2-b654-426614174999",
+    "nama_lengkap": "Suryo Utomo, S.T.",
+    "role_global": "karyawan",
+    "is_admin": true,
+    "unit": {
+      "id": 3,
+      "kode": "503",
+      "nama": "LPPM"
+    }
   }
 }
 ```
@@ -76,71 +109,99 @@ Saat Admin SDM mengubah status seorang dosen dari "Aktif" menjadi "Studi Lanjut"
 
 **Tabel: `users`**
 
-Fokus murni untuk otentikasi (login) dan status akun. Tidak ada data demografi di sini.
-
 | Nama Kolom | Tipe Data | Keterangan |
 | --- | --- | --- |
-| `id` | UUID (Primary Key) | Menggunakan UUID v4 agar aman untuk arsitektur terdistribusi. |
-| `email` | String (Unique) | Digunakan sebagai identitas utama saat login. |
-| `password` | String | Hashed password. |
-| `is_active` | Boolean | Default true. Jika false, user tidak bisa otentikasi (pengganti blokir/banned). |
-| `email_verified_at` | Timestamp | Nullable. Standar Laravel. |
+| `id` | UUID (Primary Key) | Menggunakan UUID v4 untuk integrasi multi-aplikasi. |
+| `email` | String (Unique) | Identitas utama login SSO. |
+| `password` | String | Hashed password (Bcrypt). |
+| `is_active` | Boolean | Default `true`. Jika `false`, akun dinonaktifkan dari akses SSO. |
+| `is_admin` | Boolean | Default `false`. Penanda wewenang administrator di unit kerjanya. |
+| `email_verified_at` | Timestamp | Nullable. |
 | `created_at` | Timestamp |  |
 | `updated_at` | Timestamp |  |
-| `deleted_at` | Timestamp | Soft Delete, standar enterprise untuk data pengguna. |
+| `deleted_at` | Timestamp | Soft Delete pengguna. |
 
-## 2. Tabel Hak Akses (Role-Based Access Control)
+---
 
-Tabel: `roles`
+## **2. Tabel Hak Akses & Peran**
 
-Master data untuk peran yang diakui di seluruh ekosistem kampus.
+**Tabel: `roles`**
 
 | Nama Kolom | Tipe Data | Keterangan |
 | --- | --- | --- |
 | `id` | Unsigned BigInt (PK) | Auto-increment. |
-| `name` | String (Unique) | Contoh: dosen, karyawan, mahasiswa. Huruf kecil/slug. |
-| `description` | String | Nullable. Contoh: "Dosen Pengajar Aktif". |
-| `created\_at` | Timestamp |  |
-| `updated\_at` | Timestamp |  |
+| `name` | String (Unique) | Nama role: `super_admin`, `dosen`, `mahasiswa`, `karyawan`. |
+| `description` | String | Nullable deskripsi peran. |
+| `created_at` | Timestamp |  |
+| `updated_at` | Timestamp |  |
 
 **Tabel: `user_roles` (Pivot)**
 
-Menghubungkan *user* dengan *role* mereka. *Many-to-Many* agar satu UUID *user* bisa menjadi Dosen sekaligus Admin LPPM jika diperlukan.
-
-| **Nama Kolom** | **Tipe Data** | **Keterangan** |
+| Nama Kolom | Tipe Data | Keterangan |
 | --- | --- | --- |
-| `user_id` | UUID (FK) | Relasi ke tabel `users.id` (Cascade on Delete). |
-| `role_id` | Unsigned BigInt (FK) | Relasi ke tabel `roles.id` (Cascade on Delete). |
+| `user_id` | UUID (FK) | Relasi ke `users.id` (Cascade on Delete). |
+| `role_id` | Unsigned BigInt (FK) | Relasi ke `roles.id` (Cascade on Delete). |
 
-(Catatan: Tabel pivot ini sebaiknya memiliki Composite Primary Key atas `user_id` dan `role_id` untuk mencegah duplikasi data).
+---
 
-## **3. Tabel Data Master Demografi**
+## **3. Tabel Master Data Organisasi & Akademik**
 
-**Tabel: `user_profiles`**
-Ini adalah tabel yang akan diawasi oleh *Observer*. Jika ada perubahan di tabel ini, sistem akan mempublikasikannya ke Redis.
+**Tabel: `faculties`**
 
-| **Nama Kolom** | **Tipe Data** | **Keterangan** |
+| Nama Kolom | Tipe Data | Keterangan |
 | --- | --- | --- |
 | `id` | Unsigned BigInt (PK) | Auto-increment. |
-| `user_id` | UUID (FK, Unique) | Relasi *One-to-One* ke tabel `users`. |
-| `nama_lengkap` | String | Wajib diisi. |
-| `nomor_induk` | String (Unique) | Nullable. (NIP/NIDN/NIM). |
-| `unit_kerja` | String | Nullable. Diisi untuk Karyawan (Biro/Lembaga). |
-| `fakultas` | String | Nullable. Diisi untuk Dosen/Mahasiswa. |
-| `program_studi` | String | Nullable. Diisi untuk Dosen/Mahasiswa. |
-| `status_akademik` | Enum / String | Nullable. (Aktif, Cuti, Studi Lanjut). |
+| `code` | String (Unique) | Kode fakultas (misal: `FT`, `FEB`, `FSRD`). |
+| `name` | String | Nama resmi fakultas. |
 | `created_at` | Timestamp |  |
 | `updated_at` | Timestamp |  |
 
-## **4. Tabel OAuth2 (Laravel Passport)**
+**Tabel: `study_programs`**
 
-Ini adalah pembuktian bahwa Anda bekerja secara efisien. Anda **tidak perlu dan tidak boleh** merancang tabel ini secara manual. Saat Anda menjalankan `php artisan passport:install`, Laravel otomatis membuat tabel standar industri keamanan:
+| Nama Kolom | Tipe Data | Keterangan |
+| --- | --- | --- |
+| `id` | Unsigned BigInt (PK) | Auto-increment. |
+| `faculty_id` | Unsigned BigInt (FK) | Relasi ke `faculties.id` (Cascade on Delete). |
+| `code` | String (Unique) | Kode prodi (misal: `101`, `102`, `201`). |
+| `nim_code` | String | Kode prefix NIM mahasiswa (misal: `1101`, `1201`). |
+| `name` | String | Nama program studi. |
+| `created_at` | Timestamp |  |
+| `updated_at` | Timestamp |  |
 
+**Tabel: `work_units`**
+
+| Nama Kolom | Tipe Data | Keterangan |
+| --- | --- | --- |
+| `id` | Unsigned BigInt (PK) | Auto-increment. |
+| `code` | String (Unique) | Kode unit kerja (misal: `501`, `502`, `503`). |
+| `name` | String | Nama unit kerja (UPT TIK, Biro SDM, LPPM). |
+| `created_at` | Timestamp |  |
+| `updated_at` | Timestamp |  |
+
+---
+
+## **4. Tabel Profil Demografi**
+
+**Tabel: `user_profiles`**
+
+| Nama Kolom | Tipe Data | Keterangan |
+| --- | --- | --- |
+| `id` | Unsigned BigInt (PK) | Auto-increment. |
+| `user_id` | UUID (FK, Unique) | Relasi *One-to-One* ke tabel `users` (Cascade on Delete). |
+| `nama_lengkap` | String | Nama lengkap dan gelar. |
+| `nomor_induk` | String (Unique) | Nullable. Nomor induk terstandar (NIM/NIDN/NIP). |
+| `work_unit_id` | Unsigned BigInt (FK) | Nullable. Relasi ke `work_units.id` (untuk Karyawan). |
+| `study_program_id` | Unsigned BigInt (FK) | Nullable. Relasi ke `study_programs.id` (untuk Dosen & Mhs). |
+| `created_at` | Timestamp |  |
+| `updated_at` | Timestamp |  |
+
+---
+
+## **5. Tabel OAuth2 (Laravel Passport)**
+
+Dikelola otomatis oleh migrasi Laravel Passport:
 - `oauth_clients`
 - `oauth_access_tokens`
 - `oauth_auth_codes`
 - `oauth_personal_access_clients`
 - `oauth_refresh_tokens`
-
-**Catatan Arsitektur untuk Anda Evaluasi:**
-Desain ini memisahkan secara tegas antara data untuk *Login* (`users`), otorisasi (`roles`), dan profil yang disinkronisasi (`user_profiles`). Jika Sistem 2 (Knowledge Hub) membutuhkan data nama atau status dosen, Sistem 2 tidak perlu mengambil data kredensialnya.

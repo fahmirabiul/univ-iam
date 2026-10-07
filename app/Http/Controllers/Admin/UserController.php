@@ -6,10 +6,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
-use App\Http\Requests\Admin\UpdateUserRolesRequest;
 use App\Http\Requests\Admin\UpdateUserStatusRequest;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Academic\AcademicMasterDataService;
 use App\Services\UserManagement\UserManagementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +19,7 @@ class UserController extends Controller
 {
     public function __construct(
         private readonly UserManagementService $userManagementService,
-        private readonly \App\Services\Academic\AcademicMasterDataService $academicService,
+        private readonly AcademicMasterDataService $academicService,
     ) {}
 
     /**
@@ -30,24 +30,21 @@ class UserController extends Controller
         $filters = [
             'search' => $request->query('search'),
             'role' => $request->query('role'),
-            'status' => $request->query('status'),
+            'unit' => $request->query('unit'),
+            'is_admin' => $request->query('is_admin'),
+            'is_active' => $request->query('is_active'),
         ];
 
         $users = $this->userManagementService->getPaginatedUsers($filters, 10);
-        $roles = Role::orderBy('name')->get();
-        $civitasRoles = Role::civitas()->orderBy('name')->get();
-        $adminRoles = Role::admin()->orderBy('name')->get();
+        $roles = Role::whereIn('name', ['dosen', 'karyawan', 'mahasiswa'])->orderBy('name')->get();
 
         return view('admin.users.index', [
             'users' => $users,
             'roles' => $roles,
-            'civitasRoles' => $civitasRoles,
-            'adminRoles' => $adminRoles,
             'filters' => $filters,
             'faculties' => $this->academicService->getFaculties(),
             'studyPrograms' => $this->academicService->getStudyProgramsGrouped(),
             'workUnits' => $this->academicService->getWorkUnits(),
-            'statusOptions' => \App\Services\Academic\AcademicMasterDataService::STATUS_OPTIONS,
         ]);
     }
 
@@ -64,32 +61,19 @@ class UserController extends Controller
     }
 
     /**
-     * Update the academic status and active state of the specified user.
+     * Update the active state and admin unit status of the specified user.
      */
     public function updateStatus(UpdateUserStatusRequest $request, User $user): RedirectResponse
     {
         $this->userManagementService->updateUserStatus(
             user: $user,
-            statusAkademik: $request->validated('status_akademik'),
             isActive: $request->has('is_active') ? $request->boolean('is_active') : null,
+            isAdmin: $request->has('is_admin') ? $request->boolean('is_admin') : null,
         );
 
         return redirect()
             ->route('admin.users.index')
-            ->with('success', 'Status sivitas berhasil diperbarui dan disinkronkan ke jaringan kampus.');
-    }
-
-    /**
-     * Update administrative roles assigned to the specified user.
-     */
-    public function updateRoles(UpdateUserRolesRequest $request, User $user): RedirectResponse
-    {
-        $adminRoles = (array) ($request->validated('admin_roles') ?? []);
-        $this->userManagementService->updateUserAdminRoles($user, $adminRoles);
-
-        return redirect()
-            ->route('admin.users.index')
-            ->with('success', 'Hak akses peran admin pengguna berhasil diperbarui.');
+            ->with('success', 'Status akun dan hak akses pengguna berhasil diperbarui.');
     }
 
     /**

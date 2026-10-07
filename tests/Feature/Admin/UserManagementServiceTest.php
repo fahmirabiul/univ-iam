@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Faculty;
 use App\Models\Role;
+use App\Models\StudyProgram;
 use App\Models\User;
+use App\Models\WorkUnit;
 use App\Services\UserManagement\UserManagementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Redis;
@@ -27,75 +30,139 @@ class UserManagementServiceTest extends TestCase
     {
         Redis::spy();
 
-        Role::create(['name' => 'dosen', 'description' => 'Dosen']);
+        Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
+        $unit = WorkUnit::create(['code' => '503', 'name' => 'LPPM']);
 
         $user = $this->service->createUser([
-            'email' => 'budi.dosen@univ.ac.id',
+            'email' => 'staff.lppm@univ.ac.id',
             'password' => 'secret12345',
-            'role' => 'dosen',
-            'nama_lengkap' => 'Dr. Budi Santoso, M.T.',
-            'nomor_induk' => '198501012010121001',
-            'fakultas' => 'Fakultas Teknik',
-            'program_studi' => 'Teknik Elektro',
-            'status_akademik' => 'aktif',
+            'role' => 'karyawan',
+            'nama_lengkap' => 'Staff LPPM Kampus',
+            'work_unit_id' => $unit->id,
+            'is_admin' => true,
             'is_active' => true,
         ]);
 
         $this->assertInstanceOf(User::class, $user);
-        $this->assertDatabaseHas('users', ['email' => 'budi.dosen@univ.ac.id', 'is_active' => true]);
+        $this->assertTrue($user->is_admin);
+        $this->assertTrue($user->is_active);
+        $this->assertTrue($user->hasRole('karyawan'));
+        $this->assertDatabaseHas('users', [
+            'email' => 'staff.lppm@univ.ac.id',
+            'is_admin' => true,
+            'is_active' => true,
+        ]);
         $this->assertDatabaseHas('user_profiles', [
             'user_id' => $user->id,
-            'nama_lengkap' => 'Dr. Budi Santoso, M.T.',
-            'nomor_induk' => '198501012010121001',
-            'status_akademik' => 'aktif',
+            'nama_lengkap' => 'Staff LPPM Kampus',
+            'work_unit_id' => $unit->id,
         ]);
-        $this->assertTrue($user->hasRole('dosen'));
     }
 
-    public function test_service_can_update_academic_status_and_active_state(): void
+    public function test_service_can_create_dosen_with_study_program(): void
     {
         Redis::spy();
 
         Role::create(['name' => 'dosen', 'description' => 'Dosen']);
+        $faculty = Faculty::create(['code' => 'FT', 'name' => 'Fakultas Teknik']);
+        $prodi = StudyProgram::create([
+            'faculty_id' => $faculty->id,
+            'code' => '101',
+            'nim_code' => '1101',
+            'name' => 'Teknik Informatika',
+        ]);
 
         $user = $this->service->createUser([
-            'email' => 'budi.dosen@univ.ac.id',
+            'email' => 'dosen.it@univ.ac.id',
             'password' => 'secret12345',
             'role' => 'dosen',
             'nama_lengkap' => 'Dr. Budi Santoso, M.T.',
-            'status_akademik' => 'aktif',
+            'study_program_id' => $prodi->id,
+            'is_admin' => false,
             'is_active' => true,
         ]);
 
-        $updatedUser = $this->service->updateUserStatus($user, 'studi_lanjut', false);
-
-        $this->assertEquals('studi_lanjut', $updatedUser->profile->status_akademik);
-        $this->assertFalse($updatedUser->is_active);
+        $this->assertInstanceOf(User::class, $user);
+        $this->assertFalse($user->is_admin);
+        $this->assertTrue($user->hasRole('dosen'));
         $this->assertDatabaseHas('user_profiles', [
             'user_id' => $user->id,
-            'status_akademik' => 'studi_lanjut',
+            'study_program_id' => $prodi->id,
         ]);
+    }
+
+    public function test_service_can_update_active_state_and_admin_status(): void
+    {
+        Redis::spy();
+
+        Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
+        $unit = WorkUnit::create(['code' => '502', 'name' => 'Biro SDM']);
+
+        $user = $this->service->createUser([
+            'email' => 'sdm@univ.ac.id',
+            'password' => 'secret12345',
+            'role' => 'karyawan',
+            'nama_lengkap' => 'Staf SDM',
+            'work_unit_id' => $unit->id,
+            'is_admin' => false,
+            'is_active' => true,
+        ]);
+
+        $updatedUser = $this->service->updateUserStatus($user, isActive: false, isAdmin: true);
+
+        $this->assertFalse($updatedUser->is_active);
+        $this->assertTrue($updatedUser->is_admin);
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'is_active' => false,
+            'is_admin' => true,
+        ]);
+    }
+
+    public function test_service_can_toggle_admin_status(): void
+    {
+        Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
+        $unit = WorkUnit::create(['code' => '503', 'name' => 'LPPM']);
+
+        $user = $this->service->createUser([
+            'email' => 'admin.lppm@univ.ac.id',
+            'password' => 'secret12345',
+            'role' => 'karyawan',
+            'nama_lengkap' => 'Staf LPPM',
+            'work_unit_id' => $unit->id,
+            'is_admin' => false,
+        ]);
+
+        $this->assertFalse($user->is_admin);
+
+        $toggled = $this->service->toggleAdminStatus($user, true);
+        $this->assertTrue($toggled->is_admin);
+
+        $untoggled = $this->service->toggleAdminStatus($user, false);
+        $this->assertFalse($untoggled->is_admin);
     }
 
     public function test_service_can_filter_and_paginate_users(): void
     {
         $dosenRole = Role::create(['name' => 'dosen', 'description' => 'Dosen']);
-        $mhsRole = Role::create(['name' => 'mahasiswa', 'description' => 'Mahasiswa']);
+        $karyawanRole = Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
+        $unit1 = WorkUnit::create(['code' => '501', 'name' => 'UPT TIK']);
+        $unit2 = WorkUnit::create(['code' => '503', 'name' => 'LPPM']);
 
         $this->service->createUser([
             'email' => 'andi.dosen@univ.ac.id',
             'password' => 'secret12345',
             'role' => 'dosen',
             'nama_lengkap' => 'Andi Wijaya',
-            'status_akademik' => 'aktif',
         ]);
 
         $this->service->createUser([
-            'email' => 'citra.mhs@univ.ac.id',
+            'email' => 'citra.staff@univ.ac.id',
             'password' => 'secret12345',
-            'role' => 'mahasiswa',
+            'role' => 'karyawan',
             'nama_lengkap' => 'Citra Lestari',
-            'status_akademik' => 'cuti',
+            'work_unit_id' => $unit2->id,
+            'is_admin' => true,
         ]);
 
         // Filter by role
@@ -103,41 +170,34 @@ class UserManagementServiceTest extends TestCase
         $this->assertEquals(1, $dosenPaginator->total());
         $this->assertEquals('andi.dosen@univ.ac.id', $dosenPaginator->items()[0]->email);
 
-        // Filter by status
-        $cutiPaginator = $this->service->getPaginatedUsers(['status' => 'cuti']);
-        $this->assertEquals(1, $cutiPaginator->total());
-        $this->assertEquals('citra.mhs@univ.ac.id', $cutiPaginator->items()[0]->email);
+        // Filter by unit
+        $unitPaginator = $this->service->getPaginatedUsers(['unit' => (string) $unit2->id]);
+        $this->assertEquals(1, $unitPaginator->total());
+        $this->assertEquals('citra.staff@univ.ac.id', $unitPaginator->items()[0]->email);
+
+        // Filter by admin status
+        $adminPaginator = $this->service->getPaginatedUsers(['is_admin' => '1']);
+        $this->assertEquals(1, $adminPaginator->total());
+        $this->assertEquals('citra.staff@univ.ac.id', $adminPaginator->items()[0]->email);
 
         // Search by keyword
         $searchPaginator = $this->service->getPaginatedUsers(['search' => 'Citra']);
         $this->assertEquals(1, $searchPaginator->total());
     }
 
-    public function test_service_can_update_user_admin_roles_while_preserving_civitas_role(): void
+    public function test_service_can_delete_user(): void
     {
-        Role::create(['name' => 'karyawan', 'type' => 'civitas', 'description' => 'Karyawan']);
-        Role::create(['name' => 'admin_lppm', 'type' => 'admin', 'description' => 'Admin LPPM']);
-        Role::create(['name' => 'admin_sdm', 'type' => 'admin', 'description' => 'Admin SDM']);
+        Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
 
         $user = $this->service->createUser([
-            'email' => 'staff.test@univ.ac.id',
+            'email' => 'to.delete@univ.ac.id',
             'password' => 'secret12345',
             'role' => 'karyawan',
-            'admin_roles' => ['admin_lppm'],
-            'nama_lengkap' => 'Staff Tester',
-            'unit_kerja' => 'LPPM',
-            'status_akademik' => 'aktif',
+            'nama_lengkap' => 'Delete Me',
         ]);
 
-        $this->assertTrue($user->hasRole('karyawan'));
-        $this->assertTrue($user->hasRole('admin_lppm'));
-        $this->assertFalse($user->hasRole('admin_sdm'));
-
-        // Update to add admin_sdm and remove admin_lppm
-        $updatedUser = $this->service->updateUserAdminRoles($user, ['admin_sdm']);
-
-        $this->assertTrue($updatedUser->hasRole('karyawan'));
-        $this->assertTrue($updatedUser->hasRole('admin_sdm'));
-        $this->assertFalse($updatedUser->hasRole('admin_lppm'));
+        $result = $this->service->deleteUser($user);
+        $this->assertTrue($result);
+        $this->assertSoftDeleted('users', ['id' => $user->id]);
     }
 }

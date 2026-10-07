@@ -13,7 +13,9 @@ class StoreOAuthClientRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole('super_admin', 'admin_sdm') ?? false;
+        $user = $this->user();
+
+        return $user?->isSuperAdmin() || (bool) $user?->is_admin;
     }
 
     /**

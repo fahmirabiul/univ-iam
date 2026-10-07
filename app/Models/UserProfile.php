@@ -28,10 +28,8 @@ class UserProfile extends Model
         'user_id',
         'nama_lengkap',
         'nomor_induk',
-        'unit_kerja',
-        'fakultas',
-        'program_studi',
-        'status_akademik',
+        'work_unit_id',
+        'study_program_id',
     ];
 
     /**
@@ -40,5 +38,21 @@ class UserProfile extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Get the work unit assigned to this profile (for staff/karyawan).
+     */
+    public function workUnit(): BelongsTo
+    {
+        return $this->belongsTo(WorkUnit::class, 'work_unit_id');
+    }
+
+    /**
+     * Get the study program assigned to this profile (for lecturers & students).
+     */
+    public function studyProgram(): BelongsTo
+    {
+        return $this->belongsTo(StudyProgram::class, 'study_program_id');
     }
 }

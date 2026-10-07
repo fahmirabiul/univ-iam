@@ -9,11 +9,15 @@ use JsonSerializable;
 
 final class UserProfileUpdatedDto implements JsonSerializable
 {
+    /**
+     * @param  array{id: int, kode: string, nama: string}|null  $unit
+     */
     public function __construct(
         public readonly string $ssoId,
         public readonly string $namaLengkap,
-        public readonly ?string $statusAkademik,
         public readonly string $roleGlobal,
+        public readonly bool $isAdmin = false,
+        public readonly ?array $unit = null,
         public readonly string $event = 'UserProfileUpdated',
         public readonly ?string $timestamp = null,
     ) {}
@@ -25,12 +29,18 @@ final class UserProfileUpdatedDto implements JsonSerializable
     {
         $user = $profile->relationLoaded('user') ? $profile->user : $profile->user()->with('roles')->first();
         $primaryRole = $user?->getCivitasRole()?->name ?? ($user?->roles?->first()?->name ?? 'user');
+        $workUnit = $profile->relationLoaded('workUnit') ? $profile->workUnit : $profile->workUnit;
 
         return new self(
             ssoId: (string) $profile->user_id,
             namaLengkap: $profile->nama_lengkap,
-            statusAkademik: $profile->status_akademik,
             roleGlobal: $primaryRole,
+            isAdmin: (bool) ($user?->is_admin ?? false),
+            unit: $workUnit ? [
+                'id' => $workUnit->id,
+                'kode' => $workUnit->code,
+                'nama' => $workUnit->name,
+            ] : null,
             event: 'UserProfileUpdated',
             timestamp: now()->toIso8601ZuluString(),
         );
@@ -49,8 +59,9 @@ final class UserProfileUpdatedDto implements JsonSerializable
             'data' => [
                 'sso_id' => $this->ssoId,
                 'nama_lengkap' => $this->namaLengkap,
-                'status_akademik' => $this->statusAkademik,
                 'role_global' => $this->roleGlobal,
+                'is_admin' => $this->isAdmin,
+                'unit' => $this->unit,
             ],
         ];
     }

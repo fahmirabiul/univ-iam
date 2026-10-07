@@ -99,7 +99,7 @@
                 </a>
 
                 @auth
-                    @if(auth()->user()->hasAnyRole('super_admin', 'admin_sdm'))
+                    @if(auth()->user()->isSuperAdmin() || (bool) auth()->user()->is_admin)
                         <div class="d-none d-md-flex align-items-center gap-2 ms-3 ps-3 border-start">
                             <a href="{{ route('portal') }}" class="btn btn-sm {{ request()->routeIs('portal') ? 'btn-primary' : 'btn-outline-secondary' }} px-3">
                                 <i class="icon-base ti tabler-apps me-1"></i>Portal

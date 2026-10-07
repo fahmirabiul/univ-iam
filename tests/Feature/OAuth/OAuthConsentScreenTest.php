@@ -37,9 +37,6 @@ class OAuthConsentScreenTest extends TestCase
             'user_id' => $this->dosen->id,
             'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
             'nomor_induk' => '198001012005011001',
-            'fakultas' => 'Fakultas Teknologi Informasi',
-            'program_studi' => 'Teknik Informatika',
-            'status_akademik' => 'aktif',
         ]);
 
         /** @var OAuthClientService $service */

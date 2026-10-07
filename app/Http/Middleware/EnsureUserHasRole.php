@@ -20,7 +20,21 @@ class EnsureUserHasRole
     {
         $user = $request->user();
 
-        if (! $user || ! $user->hasAnyRole($roles)) {
+        if (! $user) {
+            abort(Response::HTTP_FORBIDDEN, 'Akses ditolak: Anda tidak memiliki izin untuk mengakses halaman ini.');
+        }
+
+        // Super administrator has global access
+        if ($user->isSuperAdmin()) {
+            return $next($request);
+        }
+
+        // Check if user is an administrator and 'admin' / 'admin_sdm' is in requested roles
+        if ($user->is_admin && (in_array('admin', $roles, true) || in_array('admin_sdm', $roles, true))) {
+            return $next($request);
+        }
+
+        if (! $user->hasAnyRole($roles)) {
             abort(Response::HTTP_FORBIDDEN, 'Akses ditolak: Anda tidak memiliki izin untuk mengakses halaman ini.');
         }
 

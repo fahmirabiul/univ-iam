@@ -16,11 +16,10 @@ class PortalController extends Controller
     public function index(Request $request): View
     {
         /** @var User $user */
-        $user = $request->user()->loadMissing(['profile', 'roles']);
+        $user = $request->user()->loadMissing(['profile.workUnit', 'profile.studyProgram.faculty', 'roles']);
         $primaryRole = $user->getCivitasRole()?->name ?? ($user->roles->first()?->name ?? 'user');
-        $userRoles = $user->roles->pluck('name')->all();
 
-        $apps = $this->getAvailableApplications($userRoles);
+        $apps = $this->getAvailableApplications($user);
 
         return view('portal.index', [
             'user' => $user,
@@ -31,13 +30,14 @@ class PortalController extends Controller
     }
 
     /**
-     * Get the directory of applications filtered by user roles.
+     * Get the directory of applications filtered by user roles and unit admin rights.
      *
-     * @param  array<int, string>  $userRoles
      * @return array<int, array<string, mixed>>
      */
-    private function getAvailableApplications(array $userRoles): array
+    private function getAvailableApplications(User $user): array
     {
+        $userRoles = $user->roles->pluck('name')->all();
+
         $allApps = [
             [
                 'id' => 'knowledge-hub',
@@ -46,7 +46,7 @@ class PortalController extends Controller
                 'icon' => 'tabler-book-2',
                 'color' => 'primary',
                 'category' => 'Akademik & Riset',
-                'roles' => ['super_admin', 'admin_sdm', 'admin_lppm', 'dosen', 'mahasiswa', 'karyawan'],
+                'roles' => ['super_admin', 'dosen', 'mahasiswa', 'karyawan'],
                 'url' => 'http://localhost:8001',
                 'is_sso' => true,
             ],
@@ -79,7 +79,8 @@ class PortalController extends Controller
                 'icon' => 'tabler-users-group',
                 'color' => 'warning',
                 'category' => 'Administrasi SDM',
-                'roles' => ['super_admin', 'admin_sdm'],
+                'roles' => ['super_admin'],
+                'units' => ['502'],
                 'url' => '#',
                 'is_sso' => false,
             ],
@@ -90,7 +91,8 @@ class PortalController extends Controller
                 'icon' => 'tabler-microscope',
                 'color' => 'info',
                 'category' => 'Riset & Pengabdian',
-                'roles' => ['super_admin', 'admin_lppm', 'dosen'],
+                'roles' => ['super_admin', 'dosen'],
+                'units' => ['503'],
                 'url' => '#',
                 'is_sso' => false,
             ],
@@ -98,7 +100,22 @@ class PortalController extends Controller
 
         return array_values(array_filter(
             $allApps,
-            fn (array $app): bool => ! empty(array_intersect($userRoles, $app['roles']))
+            function (array $app) use ($user, $userRoles): bool {
+                if ($user->isSuperAdmin()) {
+                    return true;
+                }
+
+                if (! empty(array_intersect($userRoles, $app['roles'] ?? []))) {
+                    return true;
+                }
+
+                if ((bool) $user->is_admin && ! empty($app['units'])) {
+                    $unitCode = $user->profile?->workUnit?->code;
+                    return in_array($unitCode, $app['units'], true);
+                }
+
+                return false;
+            }
         ));
     }
 }

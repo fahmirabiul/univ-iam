@@ -24,20 +24,20 @@ class OAuthClientControllerTest extends TestCase
     {
         parent::setUp();
 
-        $adminRole = Role::create(['name' => 'admin_sdm', 'description' => 'Admin SDM']);
+        $adminRole = Role::create(['name' => 'super_admin', 'description' => 'Super Admin']);
         $dosenRole = Role::create(['name' => 'dosen', 'description' => 'Dosen']);
 
         $this->admin = User::create([
             'email' => 'admin.sdm@univ.ac.id',
             'password' => bcrypt('password123'),
             'is_active' => true,
+            'is_admin' => true,
         ]);
         $this->admin->roles()->attach($adminRole->id);
 
         UserProfile::create([
             'user_id' => $this->admin->id,
             'nama_lengkap' => 'Admin SDM Ekosistem',
-            'status_akademik' => 'aktif',
         ]);
 
         $this->dosen = User::create([

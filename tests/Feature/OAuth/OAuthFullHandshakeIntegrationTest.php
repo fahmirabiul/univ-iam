@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\OAuth;
 
+use App\Models\Faculty;
 use App\Models\Role;
+use App\Models\StudyProgram;
 use App\Models\User;
 use App\Models\UserProfile;
 use App\Services\OAuth\OAuthClientService;
@@ -42,14 +44,20 @@ class OAuthFullHandshakeIntegrationTest extends TestCase
         ]);
         $this->dosen->roles()->attach($role->id);
 
-        // 3. Create Demographic Master Profile
+        // 3. Create Faculty, Study Program & Profile
+        $faculty = Faculty::create(['code' => 'FTI', 'name' => 'Fakultas Teknik Informatika']);
+        $studyProgram = StudyProgram::create([
+            'faculty_id' => $faculty->id,
+            'code' => '101',
+            'nim_code' => '1101',
+            'name' => 'Informatika',
+        ]);
+
         UserProfile::create([
             'user_id' => $this->dosen->id,
             'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
             'nomor_induk' => '198001012005011001',
-            'fakultas' => 'FTI',
-            'program_studi' => 'Informatika',
-            'status_akademik' => 'aktif',
+            'study_program_id' => $studyProgram->id,
         ]);
 
         // 4. Create OAuth2 Client (Knowledge Hub)
@@ -147,12 +155,13 @@ class OAuthFullHandshakeIntegrationTest extends TestCase
                 'sso_id' => $this->dosen->id,
                 'email' => 'fahmi.dosen@univ.ac.id',
                 'role_global' => 'dosen',
+                'is_superadmin' => false,
+                'is_admin' => false,
+                'fakultas' => 'Fakultas Teknik Informatika',
+                'program_studi' => 'Informatika',
                 'profil' => [
                     'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
                     'nomor_induk' => '198001012005011001',
-                    'fakultas' => 'FTI',
-                    'program_studi' => 'Informatika',
-                    'status_akademik' => 'aktif',
                 ],
             ]);
     }

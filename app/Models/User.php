@@ -28,6 +28,7 @@ class User extends Authenticatable
         'email',
         'password',
         'is_active',
+        'is_admin',
     ];
 
     /**
@@ -51,6 +52,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'is_admin' => 'boolean',
         ];
     }
 
@@ -96,39 +98,40 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the user's primary civitas/identity role (dosen, mahasiswa, karyawan).
+     * Check if user is the Super Administrator.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasRole('super_admin');
+    }
+
+    /**
+     * Check if user is an administrator of their assigned work unit.
+     */
+    public function isUnitAdmin(): bool
+    {
+        return (bool) $this->is_admin && $this->profile?->work_unit_id !== null;
+    }
+
+    /**
+     * Get the user's primary civitas/identity role (dosen, mahasiswa, karyawan) or super_admin.
      */
     public function getCivitasRole(): ?Role
     {
         if ($this->relationLoaded('roles')) {
-            return $this->roles->firstWhere('type', Role::TYPE_CIVITAS)
-                ?? $this->roles->first(fn (Role $r): bool => in_array($r->name, ['dosen', 'mahasiswa', 'karyawan'], true))
+            return $this->roles->first(fn (Role $r): bool => in_array($r->name, ['dosen', 'karyawan', 'mahasiswa'], true))
                 ?? $this->roles->first();
         }
 
-        return $this->roles()->where('type', Role::TYPE_CIVITAS)->first()
-            ?? $this->roles()->whereIn('name', ['dosen', 'mahasiswa', 'karyawan'])->first()
+        return $this->roles()->whereIn('name', ['dosen', 'karyawan', 'mahasiswa'])->first()
             ?? $this->roles()->first();
     }
 
     /**
-     * Get the administrative roles assigned to the user (e.g. admin_sdm, admin_lppm, super_admin).
-     *
-     * @return \Illuminate\Support\Collection<int, Role>
+     * Get the user's assigned work unit if available.
      */
-    public function getAdminRoles(): \Illuminate\Support\Collection
+    public function getAssignedWorkUnit(): ?WorkUnit
     {
-        if ($this->relationLoaded('roles')) {
-            return $this->roles
-                ->filter(fn (Role $r): bool => $r->type === Role::TYPE_ADMIN || in_array($r->name, ['super_admin', 'admin_sdm', 'admin_lppm'], true))
-                ->values();
-        }
-
-        return $this->roles()
-            ->where(function ($q): void {
-                $q->where('type', Role::TYPE_ADMIN)
-                    ->orWhereIn('name', ['super_admin', 'admin_sdm', 'admin_lppm']);
-            })
-            ->get();
+        return $this->profile?->workUnit;
     }
 }

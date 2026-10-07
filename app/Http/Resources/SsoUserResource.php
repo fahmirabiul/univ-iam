@@ -14,7 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class SsoUserResource extends JsonResource
 {
     /**
-     * Disable resource wrapping (e.g. data envelope) to strictly match TDD contract.
+     * Disable resource wrapping (e.g. data envelope) to strictly match SSO contract.
      */
     public static $wrap = null;
 
@@ -28,19 +28,27 @@ class SsoUserResource extends JsonResource
         /** @var User $user */
         $user = $this->resource;
         $profile = $user->profile;
+        $workUnit = $profile?->workUnit;
+        $studyProgram = $profile?->studyProgram;
+        $faculty = $studyProgram?->faculty;
         $civitasRole = $user->getCivitasRole();
 
         return [
             'sso_id' => $user->id,
             'email' => $user->email,
             'role_global' => $civitasRole?->name ?? 'user',
-            'roles' => $user->roles->pluck('name')->values()->all(),
+            'is_superadmin' => $user->isSuperAdmin(),
+            'is_admin' => (bool) $user->is_admin,
+            'unit' => $workUnit ? [
+                'id' => $workUnit->id,
+                'kode' => $workUnit->code,
+                'nama' => $workUnit->name,
+            ] : null,
+            'fakultas' => $faculty?->name,
+            'program_studi' => $studyProgram?->name,
             'profil' => [
                 'nama_lengkap' => $profile?->nama_lengkap ?? '',
                 'nomor_induk' => $profile?->nomor_induk,
-                'fakultas' => $profile?->fakultas,
-                'program_studi' => $profile?->program_studi,
-                'status_akademik' => $profile?->status_akademik,
             ],
         ];
     }

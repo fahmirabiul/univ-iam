@@ -13,7 +13,9 @@ class UpdateUserStatusRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole('super_admin', 'admin_sdm') ?? false;
+        $user = $this->user();
+
+        return $user?->isSuperAdmin() || (bool) $user?->is_admin;
     }
 
     /**
@@ -24,8 +26,8 @@ class UpdateUserStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status_akademik' => ['required', 'string', 'in:aktif,cuti,studi_lanjut,pensiun,keluar,lulus,drop_out,resign,non_aktif'],
             'is_active' => ['sometimes', 'boolean'],
+            'is_admin' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -37,8 +39,8 @@ class UpdateUserStatusRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'status_akademik' => 'Status Akademik / Kepegawaian',
             'is_active' => 'Status Akun Aktif',
+            'is_admin' => 'Hak Akses Admin Unit',
         ];
     }
 }

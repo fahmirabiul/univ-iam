@@ -9,10 +9,14 @@ use App\Models\User;
 class SsoUserService
 {
     /**
-     * Retrieve the authenticated user with eager-loaded profile and roles.
+     * Retrieve the authenticated user with eager-loaded profile, unit/faculty, and roles.
      */
     public function getAuthenticatedUserProfile(User $user): User
     {
-        return $user->loadMissing(['profile', 'roles']);
+        return $user->loadMissing([
+            'profile.workUnit',
+            'profile.studyProgram.faculty',
+            'roles',
+        ]);
     }
 }

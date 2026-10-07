@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Admin;
 
+use App\Models\Faculty;
 use App\Models\Role;
+use App\Models\StudyProgram;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Models\WorkUnit;
+use Database\Seeders\AcademicMasterDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Redis;
 use Mockery;
@@ -18,9 +22,7 @@ class UserManagementTest extends TestCase
 
     private User $adminSdm;
 
-    private Role $adminRole;
-
-    private Role $adminLppmRole;
+    private Role $superAdminRole;
 
     private Role $dosenRole;
 
@@ -32,29 +34,34 @@ class UserManagementTest extends TestCase
     {
         parent::setUp();
 
-        $this->adminRole = Role::create(['name' => 'admin_sdm', 'type' => 'admin', 'description' => 'Admin SDM']);
-        $this->adminLppmRole = Role::create(['name' => 'admin_lppm', 'type' => 'admin', 'description' => 'Admin LPPM']);
-        $this->dosenRole = Role::create(['name' => 'dosen', 'type' => 'civitas', 'description' => 'Dosen']);
-        $this->mahasiswaRole = Role::create(['name' => 'mahasiswa', 'type' => 'civitas', 'description' => 'Mahasiswa']);
-        $this->karyawanRole = Role::create(['name' => 'karyawan', 'type' => 'civitas', 'description' => 'Karyawan']);
+        $this->seed(AcademicMasterDataSeeder::class);
+
+        $this->superAdminRole = Role::create(['name' => 'super_admin', 'description' => 'Super Admin']);
+        $this->dosenRole = Role::create(['name' => 'dosen', 'description' => 'Dosen']);
+        $this->mahasiswaRole = Role::create(['name' => 'mahasiswa', 'description' => 'Mahasiswa']);
+        $this->karyawanRole = Role::create(['name' => 'karyawan', 'description' => 'Karyawan']);
+
+        $sdmUnit = WorkUnit::where('code', '502')->first();
 
         $this->adminSdm = User::create([
             'email' => 'admin.sdm@univ.ac.id',
             'password' => bcrypt('password123'),
             'is_active' => true,
+            'is_admin' => true,
         ]);
-        $this->adminSdm->roles()->attach([$this->karyawanRole->id, $this->adminRole->id]);
+        $this->adminSdm->roles()->attach($this->karyawanRole->id);
 
         UserProfile::create([
             'user_id' => $this->adminSdm->id,
             'nama_lengkap' => 'Biro Kepegawaian & SDM',
-            'unit_kerja' => 'Biro SDM',
-            'status_akademik' => 'aktif',
+            'work_unit_id' => $sdmUnit?->id,
         ]);
     }
 
     public function test_admin_can_view_users_index_page_with_data_and_filters(): void
     {
+        $prodi = StudyProgram::where('code', '101')->firstOrFail();
+
         /** @var User $dosen */
         $dosen = User::create([
             'email' => 'budi.dosen@univ.ac.id',
@@ -67,9 +74,7 @@ class UserManagementTest extends TestCase
             'user_id' => $dosen->id,
             'nama_lengkap' => 'Dr. Budi Santoso, M.T.',
             'nomor_induk' => '198501012010121001',
-            'fakultas' => 'Fakultas Teknik',
-            'program_studi' => 'Teknik Informatika',
-            'status_akademik' => 'aktif',
+            'study_program_id' => $prodi->id,
         ]);
 
         $response = $this->actingAs($this->adminSdm)->get('/admin/users');
@@ -79,12 +84,14 @@ class UserManagementTest extends TestCase
             ->assertSee('Dr. Budi Santoso, M.T.')
             ->assertSee('budi.dosen@univ.ac.id')
             ->assertSee('198501012010121001')
-            ->assertSee('Fakultas Teknik');
+            ->assertSee('Teknik Informatika');
     }
 
     public function test_admin_can_create_new_user_and_trigger_redis_broadcast(): void
     {
         Redis::spy();
+
+        $prodi = StudyProgram::where('code', '101')->firstOrFail();
 
         $response = $this->actingAs($this->adminSdm)->post('/admin/users', [
             'email' => 'citra.dosen@univ.ac.id',
@@ -92,9 +99,8 @@ class UserManagementTest extends TestCase
             'role' => 'dosen',
             'nama_lengkap' => 'Prof. Dr. Citra Lestari',
             'nomor_induk' => '197901012005012001',
-            'fakultas' => 'Fakultas Kedokteran',
-            'program_studi' => 'Pendidikan Dokter',
-            'status_akademik' => 'aktif',
+            'study_program_id' => $prodi->id,
+            'is_active' => '1',
         ]);
 
         $response->assertRedirect(route('admin.users.index'))
@@ -111,8 +117,7 @@ class UserManagementTest extends TestCase
             'user_id' => $newUser->id,
             'nama_lengkap' => 'Prof. Dr. Citra Lestari',
             'nomor_induk' => '197901012005012001',
-            'fakultas' => 'Fakultas Kedokteran',
-            'status_akademik' => 'aktif',
+            'study_program_id' => $prodi->id,
         ]);
 
         $this->assertTrue($newUser->hasRole('dosen'));
@@ -128,61 +133,43 @@ class UserManagementTest extends TestCase
                     return $decoded['event'] === 'UserProfileUpdated'
                         && $decoded['data']['sso_id'] === $newUser->id
                         && $decoded['data']['nama_lengkap'] === 'Prof. Dr. Citra Lestari'
-                        && $decoded['data']['status_akademik'] === 'aktif'
                         && $decoded['data']['role_global'] === 'dosen';
                 })
             );
     }
 
-    public function test_admin_can_update_user_academic_status_and_trigger_redis_broadcast(): void
+    public function test_admin_can_update_user_status_and_admin_right(): void
     {
         Redis::spy();
 
-        /** @var User $dosen */
-        $dosen = User::create([
-            'email' => 'dosen.update@univ.ac.id',
+        $unitLppm = WorkUnit::where('code', '503')->firstOrFail();
+
+        /** @var User $karyawan */
+        $karyawan = User::create([
+            'email' => 'staf.lppm@univ.ac.id',
             'password' => bcrypt('password123'),
             'is_active' => true,
+            'is_admin' => false,
         ]);
-        $dosen->roles()->attach($this->dosenRole->id);
+        $karyawan->roles()->attach($this->karyawanRole->id);
 
         UserProfile::create([
-            'user_id' => $dosen->id,
-            'nama_lengkap' => 'Dr. Hendra Gunawan',
-            'nomor_induk' => '198203032008011002',
-            'fakultas' => 'Fakultas MIPA',
-            'program_studi' => 'Matematika',
-            'status_akademik' => 'aktif',
+            'user_id' => $karyawan->id,
+            'nama_lengkap' => 'Staf LPPM',
+            'work_unit_id' => $unitLppm->id,
         ]);
 
-        $response = $this->actingAs($this->adminSdm)->put("/admin/users/{$dosen->id}/status", [
-            'status_akademik' => 'studi_lanjut',
+        $response = $this->actingAs($this->adminSdm)->put("/admin/users/{$karyawan->id}/status", [
+            'is_admin' => '1',
             'is_active' => '1',
         ]);
 
         $response->assertRedirect(route('admin.users.index'))
             ->assertSessionHas('success');
 
-        $this->assertDatabaseHas('user_profiles', [
-            'user_id' => $dosen->id,
-            'status_akademik' => 'studi_lanjut',
-        ]);
-
-        // Verify that UserProfileObserver broadcasted the update to Redis matching TDD contract
-        $expectedChannel = (string) config('services.redis_channels.user_profile_updated', 'university.user.profile_updated');
-        Redis::shouldHaveReceived('publish')
-            ->with(
-                $expectedChannel,
-                Mockery::on(function (string $jsonPayload) use ($dosen): bool {
-                    $decoded = json_decode($jsonPayload, true, 512, JSON_THROW_ON_ERROR);
-
-                    return $decoded['event'] === 'UserProfileUpdated'
-                        && $decoded['data']['sso_id'] === $dosen->id
-                        && $decoded['data']['nama_lengkap'] === 'Dr. Hendra Gunawan'
-                        && $decoded['data']['status_akademik'] === 'studi_lanjut'
-                        && $decoded['data']['role_global'] === 'dosen';
-                })
-            );
+        $karyawan->refresh();
+        $this->assertTrue($karyawan->is_admin);
+        $this->assertTrue($karyawan->is_active);
     }
 
     public function test_admin_can_soft_delete_user(): void
@@ -224,6 +211,7 @@ class UserManagementTest extends TestCase
             'email' => 'dosen.regular@univ.ac.id',
             'password' => bcrypt('password123'),
             'is_active' => true,
+            'is_admin' => false,
         ]);
         $dosen->roles()->attach($this->dosenRole->id);
 
@@ -238,7 +226,7 @@ class UserManagementTest extends TestCase
 
         // Attempt Status Update
         $updateResponse = $this->actingAs($dosen)->put("/admin/users/{$this->adminSdm->id}/status", [
-            'status_akademik' => 'non_aktif',
+            'is_active' => '0',
         ]);
         $updateResponse->assertForbidden();
 
@@ -247,16 +235,17 @@ class UserManagementTest extends TestCase
         $deleteResponse->assertForbidden();
     }
 
-    public function test_admin_can_create_karyawan_with_admin_roles_such_as_admin_lppm(): void
+    public function test_admin_can_create_karyawan_with_work_unit_and_is_admin_flag(): void
     {
+        $unitLppm = WorkUnit::where('code', '503')->firstOrFail();
+
         $response = $this->actingAs($this->adminSdm)->post('/admin/users', [
             'email' => 'staff.lppm@univ.ac.id',
             'password' => 'password12345',
             'role' => 'karyawan',
-            'admin_roles' => ['admin_lppm'],
             'nama_lengkap' => 'Staff LPPM Riset',
-            'unit_kerja' => 'LPPM',
-            'status_akademik' => 'aktif',
+            'work_unit_id' => $unitLppm->id,
+            'is_admin' => '1',
         ]);
 
         $response->assertRedirect(route('admin.users.index'))
@@ -266,48 +255,7 @@ class UserManagementTest extends TestCase
         $newUser = User::where('email', 'staff.lppm@univ.ac.id')->firstOrFail();
 
         $this->assertTrue($newUser->hasRole('karyawan'));
-        $this->assertTrue($newUser->hasRole('admin_lppm'));
-        $this->assertSame('karyawan', $newUser->getCivitasRole()?->name);
-        $this->assertSame(['admin_lppm'], $newUser->getAdminRoles()->pluck('name')->all());
-    }
-
-    public function test_admin_can_update_user_admin_roles(): void
-    {
-        /** @var User $karyawan */
-        $karyawan = User::create([
-            'email' => 'karyawan.biasa@univ.ac.id',
-            'password' => bcrypt('password123'),
-            'is_active' => true,
-        ]);
-        $karyawan->roles()->attach($this->karyawanRole->id);
-
-        $this->assertTrue($karyawan->hasRole('karyawan'));
-        $this->assertFalse($karyawan->hasRole('admin_lppm'));
-
-        // Assign admin_lppm and admin_sdm
-        $response = $this->actingAs($this->adminSdm)->put("/admin/users/{$karyawan->id}/roles", [
-            'admin_roles' => ['admin_lppm', 'admin_sdm'],
-        ]);
-
-        $response->assertRedirect(route('admin.users.index'))
-            ->assertSessionHas('success');
-
-        $karyawan->refresh();
-        $this->assertTrue($karyawan->hasRole('karyawan'));
-        $this->assertTrue($karyawan->hasRole('admin_lppm'));
-        $this->assertTrue($karyawan->hasRole('admin_sdm'));
-
-        // Remove admin_sdm, keep admin_lppm
-        $revokeResponse = $this->actingAs($this->adminSdm)->put("/admin/users/{$karyawan->id}/roles", [
-            'admin_roles' => ['admin_lppm'],
-        ]);
-
-        $revokeResponse->assertRedirect(route('admin.users.index'))
-            ->assertSessionHas('success');
-
-        $karyawan->refresh();
-        $this->assertTrue($karyawan->hasRole('karyawan'));
-        $this->assertTrue($karyawan->hasRole('admin_lppm'));
-        $this->assertFalse($karyawan->hasRole('admin_sdm'));
+        $this->assertTrue($newUser->is_admin);
+        $this->assertSame($unitLppm->id, $newUser->profile?->work_unit_id);
     }
 }

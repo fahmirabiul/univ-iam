@@ -11,14 +11,14 @@
                 <div>
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <h4 class="fw-bold text-heading mb-0">Selamat Datang, {{ $profile->nama_lengkap ?? $user->email }}!</h4>
-                        @if($profile && $profile->status_akademik)
-                            <span class="badge {{ $profile->status_akademik === 'aktif' ? 'bg-label-success' : 'bg-label-warning' }} text-uppercase" style="font-size: 0.75rem;">
-                                {{ $profile->status_akademik }}
-                            </span>
+                        @if($user->isSuperAdmin())
+                            <span class="badge bg-label-danger text-uppercase" style="font-size: 0.75rem;">SUPER ADMIN</span>
+                        @elseif($user->is_admin)
+                            <span class="badge bg-label-warning text-uppercase" style="font-size: 0.75rem;">ADMIN UNIT</span>
                         @endif
                     </div>
                     <p class="text-body mb-0">
-                        {{ $profile->fakultas ? $profile->fakultas . ($profile->program_studi ? ' • ' . $profile->program_studi : '') : ($profile->unit_kerja ?? 'Sivitas Akademika') }}
+                        {{ $profile?->studyProgram ? ($profile->studyProgram->faculty?->name ? $profile->studyProgram->faculty->name . ' • ' : '') . $profile->studyProgram->name : ($profile?->workUnit?->name ?? 'Sivitas Akademika') }}
                     </p>
                 </div>
                 <div>

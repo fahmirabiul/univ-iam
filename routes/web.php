@@ -32,7 +32,6 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::put('/users/{user}/status', [UserController::class, 'updateStatus'])->name('users.update_status');
-        Route::put('/users/{user}/roles', [UserController::class, 'updateRoles'])->name('users.update_roles');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
         // OAuth2 Clients Management (SSO Providers)

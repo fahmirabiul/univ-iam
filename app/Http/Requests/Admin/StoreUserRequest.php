@@ -13,7 +13,9 @@ class StoreUserRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->hasAnyRole('super_admin', 'admin_sdm') ?? false;
+        $user = $this->user();
+
+        return $user?->isSuperAdmin() || (bool) $user?->is_admin;
     }
 
     /**
@@ -27,14 +29,11 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', 'exists:roles,name'],
-            'admin_roles' => ['nullable', 'array'],
-            'admin_roles.*' => ['string', 'exists:roles,name'],
             'nama_lengkap' => ['required', 'string', 'max:255'],
             'nomor_induk' => ['nullable', 'string', 'max:50', 'unique:user_profiles,nomor_induk'],
-            'unit_kerja' => ['nullable', 'string', 'max:255'],
-            'fakultas' => ['nullable', 'string', 'max:255'],
-            'program_studi' => ['nullable', 'string', 'max:255'],
-            'status_akademik' => ['nullable', 'string', 'in:aktif,cuti,studi_lanjut,pensiun,keluar,lulus,drop_out,resign,non_aktif'],
+            'work_unit_id' => ['nullable'],
+            'study_program_id' => ['nullable'],
+            'is_admin' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
@@ -52,10 +51,9 @@ class StoreUserRequest extends FormRequest
             'role' => 'Peran Pengguna',
             'nama_lengkap' => 'Nama Lengkap',
             'nomor_induk' => 'Nomor Induk (NIP/NIDN/NIM)',
-            'unit_kerja' => 'Unit Kerja',
-            'fakultas' => 'Fakultas',
-            'program_studi' => 'Program Studi',
-            'status_akademik' => 'Status Akademik',
+            'work_unit_id' => 'Unit Kerja',
+            'study_program_id' => 'Program Studi',
+            'is_admin' => 'Status Admin Unit',
             'is_active' => 'Status Akun Aktif',
         ];
     }

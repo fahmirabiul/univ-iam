@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Faculty;
 use App\Models\Role;
+use App\Models\StudyProgram;
 use App\Models\User;
 use App\Models\UserProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,7 +40,6 @@ class WebAuthTest extends TestCase
         UserProfile::create([
             'user_id' => $user->id,
             'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
-            'status_akademik' => 'aktif',
         ]);
 
         $response = $this->post('/login', [
@@ -96,12 +97,18 @@ class WebAuthTest extends TestCase
         ]);
         $user->roles()->attach($role->id);
 
+        $faculty = Faculty::create(['code' => 'FT', 'name' => 'Fakultas Teknik']);
+        $prodi = StudyProgram::create([
+            'faculty_id' => $faculty->id,
+            'code' => '101',
+            'nim_code' => '1101',
+            'name' => 'Teknik Informatika',
+        ]);
+
         UserProfile::create([
             'user_id' => $user->id,
             'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
-            'fakultas' => 'Fakultas Teknologi Informasi',
-            'program_studi' => 'Teknik Informatika',
-            'status_akademik' => 'aktif',
+            'study_program_id' => $prodi->id,
         ]);
 
         $response = $this->actingAs($user)->get('/portal');

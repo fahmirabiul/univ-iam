@@ -8,7 +8,7 @@
     <div class="col-12 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
             <h4 class="fw-bold text-heading mb-1">Manajemen Master Data Sivitas Akademika</h4>
-            <p class="text-body mb-0">Kelola akun pengguna, penetapan peran global, dan status kepegawaian/akademik terpusat.</p>
+            <p class="text-body mb-0">Kelola akun pengguna, penetapan peran sivitas, dan hak admin unit kerja terpusat.</p>
         </div>
         <div>
             <button type="button" class="btn btn-primary d-flex align-items-center gap-2 px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCreateUser">
@@ -56,9 +56,9 @@
             <thead class="table-light">
                 <tr>
                     <th scope="col" class="py-3 px-4 text-heading fw-semibold small text-uppercase">Pengguna</th>
-                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Unit / Program Studi</th>
-                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Peran & Hak Akses</th>
-                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Status Akademik</th>
+                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Nomor Induk / Penempatan</th>
+                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Peran Sivitas</th>
+                    <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Wewenang Admin</th>
                     <th scope="col" class="py-3 px-3 text-heading fw-semibold small text-uppercase">Status Akun</th>
                     <th scope="col" class="py-3 px-4 text-end text-heading fw-semibold small text-uppercase">Aksi</th>
                 </tr>
@@ -83,23 +83,32 @@
                         <td class="py-3 px-3">
                             <div class="fw-medium text-heading small">{{ $user->profile?->nomor_induk ?? '-' }}</div>
                             <div class="text-muted small">
-                                {{ $user->profile?->fakultas ? $user->profile->fakultas . ($user->profile->program_studi ? ' • ' . $user->profile->program_studi : '') : ($user->profile?->unit_kerja ?? 'Pusat') }}
+                                @if($user->profile?->studyProgram)
+                                    {{ $user->profile->studyProgram->faculty?->name ? $user->profile->studyProgram->faculty->name . ' • ' : '' }}{{ $user->profile->studyProgram->name }}
+                                @else
+                                    {{ $user->profile?->workUnit?->name ?? 'Pusat' }}
+                                @endif
                             </div>
                         </td>
 
-                        <!-- Roles (Civitas Identity + Admin Roles) -->
+                        <!-- Primary Civitas Role -->
                         <td class="py-3 px-3">
-                            <div class="d-flex flex-wrap gap-1 align-items-center">
-                                <x-role-badge :role="$user->getCivitasRole()?->name ?? 'user'" />
-                                @foreach($user->getAdminRoles() as $ar)
-                                    <x-role-badge :role="$ar->name" />
-                                @endforeach
-                            </div>
+                            <x-role-badge :role="$user->getCivitasRole()?->name ?? 'user'" />
                         </td>
 
-                        <!-- Academic Status -->
+                        <!-- Admin Authority -->
                         <td class="py-3 px-3">
-                            <x-status-badge :status="$user->profile?->status_akademik ?? 'aktif'" />
+                            @if($user->isSuperAdmin())
+                                <span class="badge bg-label-danger fw-semibold">
+                                    <i class="icon-base ti tabler-shield-lock me-1"></i>Super Admin
+                                </span>
+                            @elseif($user->is_admin)
+                                <span class="badge bg-label-warning fw-semibold">
+                                    <i class="icon-base ti tabler-shield-check me-1"></i>Admin Unit
+                                </span>
+                            @else
+                                <span class="badge bg-label-secondary">Staf / Anggota</span>
+                            @endif
                         </td>
 
                         <!-- Account Active State -->
@@ -114,44 +123,31 @@
                         <!-- Actions -->
                         <td class="py-3 px-4 text-end">
                             <div class="d-flex align-items-center justify-content-end gap-2">
-                                <!-- Trigger Manage Admin Roles Modal (Khusus Karyawan / Dosen) -->
-                                @if(in_array($user->getCivitasRole()?->name, ['karyawan', 'dosen'], true))
-                                    <button type="button"
-                                            class="btn btn-sm btn-outline-info fw-semibold px-2 btn-manage-roles"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#modalManageRoles"
-                                            data-user-id="{{ $user->id }}"
-                                            data-user-name="{{ $user->profile?->nama_lengkap ?? $user->email }}"
-                                            data-civitas="{{ $user->getCivitasRole()?->name ?? 'karyawan' }}"
-                                            data-admin-roles="{{ json_encode($user->getAdminRoles()->pluck('name')->all()) }}"
-                                            data-action-url="{{ route('admin.users.update_roles', $user) }}"
-                                            title="Kelola Peran Admin">
-                                        <i class="icon-base ti tabler-user-shield me-1"></i>Role Admin
-                                    </button>
-                                @endif
-
-                                <!-- Trigger Dynamic Status Modal -->
+                                <!-- Trigger Update Status & Admin Modal -->
                                 <button type="button"
                                         class="btn btn-sm btn-outline-primary fw-semibold px-3 btn-edit-status"
                                         data-bs-toggle="modal"
                                         data-bs-target="#modalUpdateStatus"
                                         data-user-id="{{ $user->id }}"
                                         data-user-name="{{ $user->profile?->nama_lengkap ?? $user->email }}"
-                                        data-role="{{ $user->getCivitasRole()?->name ?? 'dosen' }}"
-                                        data-status="{{ $user->profile?->status_akademik ?? 'aktif' }}"
+                                        data-role="{{ $user->getCivitasRole()?->name ?? 'karyawan' }}"
+                                        data-is-admin="{{ $user->is_admin ? '1' : '0' }}"
                                         data-active="{{ $user->is_active ? '1' : '0' }}"
+                                        data-is-superadmin="{{ $user->isSuperAdmin() ? '1' : '0' }}"
                                         data-action-url="{{ route('admin.users.update_status', $user) }}">
-                                    <i class="icon-base ti tabler-edit me-1"></i>Status
+                                    <i class="icon-base ti tabler-edit me-1"></i>Ubah
                                 </button>
 
                                 <!-- Trigger Delete Form -->
-                                <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menonaktifkan akun ini?');" class="d-inline m-0">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus Pengguna">
-                                        <i class="icon-base ti tabler-trash"></i>
-                                    </button>
-                                </form>
+                                @if(! $user->isSuperAdmin())
+                                    <form action="{{ route('admin.users.destroy', $user) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menonaktifkan akun ini?');" class="d-inline m-0">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus Pengguna">
+                                            <i class="icon-base ti tabler-trash"></i>
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>
@@ -186,43 +182,12 @@
 <!-- Modal Partials -->
 @include('admin.users.partials.create-user-modal')
 @include('admin.users.partials.update-status-modal')
-@include('admin.users.partials.manage-roles-modal')
 @endsection
 
 @push('page-js')
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const modalUpdateStatus = document.getElementById('modalUpdateStatus');
-        const modalManageRoles = document.getElementById('modalManageRoles');
-        const statusOptions = @json($statusOptions ?? []);
-
-        if (modalManageRoles) {
-            modalManageRoles.addEventListener('show.bs.modal', function (event) {
-                const button = event.relatedTarget;
-                if (!button) return;
-
-                const userName = button.getAttribute('data-user-name') || '';
-                const civitasRole = button.getAttribute('data-civitas') || 'karyawan';
-                const actionUrl = button.getAttribute('data-action-url') || '';
-                const activeAdminRoles = JSON.parse(button.getAttribute('data-admin-roles') || '[]');
-
-                const form = modalManageRoles.querySelector('#formManageRoles');
-                const nameEl = modalManageRoles.querySelector('#modalRolesUserName');
-                const civitasBadge = modalManageRoles.querySelector('#modalRolesCivitasBadge');
-
-                if (form) form.action = actionUrl;
-                if (nameEl) nameEl.textContent = userName;
-                if (civitasBadge) {
-                    civitasBadge.innerHTML = `<span class="badge bg-label-warning text-uppercase fw-semibold px-2 py-1">${civitasRole.toUpperCase()}</span>`;
-                }
-
-                // Check or uncheck admin roles checkboxes
-                const checkboxes = modalManageRoles.querySelectorAll('.admin-role-checkbox');
-                checkboxes.forEach(function (cb) {
-                    cb.checked = activeAdminRoles.includes(cb.value);
-                });
-            });
-        }
 
         if (modalUpdateStatus) {
             modalUpdateStatus.addEventListener('show.bs.modal', function (event) {
@@ -230,30 +195,26 @@
                 if (!button) return;
 
                 const userName = button.getAttribute('data-user-name') || '';
-                const userRole = button.getAttribute('data-role') || 'dosen';
-                const currentStatus = button.getAttribute('data-status') || 'aktif';
+                const userRole = button.getAttribute('data-role') || 'karyawan';
                 const isActive = button.getAttribute('data-active') === '1';
+                const isAdmin = button.getAttribute('data-is-admin') === '1';
+                const isSuperAdmin = button.getAttribute('data-is-superadmin') === '1';
                 const actionUrl = button.getAttribute('data-action-url') || '';
 
                 const form = modalUpdateStatus.querySelector('#formUpdateStatus');
                 const nameEl = modalUpdateStatus.querySelector('#modalStatusUserName');
-                const statusSelect = modalUpdateStatus.querySelector('#modalStatusAkademik');
                 const activeCheckbox = modalUpdateStatus.querySelector('#modalStatusIsActive');
+                const adminCheckbox = modalUpdateStatus.querySelector('#modalStatusIsAdmin');
+                const adminContainer = modalUpdateStatus.querySelector('#modalStatusIsAdminContainer');
 
                 if (form) form.action = actionUrl;
                 if (nameEl) nameEl.textContent = userName + ' (' + userRole.toUpperCase() + ')';
                 if (activeCheckbox) activeCheckbox.checked = isActive;
+                if (adminCheckbox) adminCheckbox.checked = isAdmin;
 
-                if (statusSelect) {
-                    statusSelect.innerHTML = '';
-                    const roleOpts = statusOptions[userRole] || statusOptions['dosen'] || { aktif: 'Aktif' };
-                    for (const [val, label] of Object.entries(roleOpts)) {
-                        const optEl = document.createElement('option');
-                        optEl.value = val;
-                        optEl.textContent = label;
-                        if (val === currentStatus) optEl.selected = true;
-                        statusSelect.appendChild(optEl);
-                    }
+                if (adminContainer) {
+                    // Hide admin checkbox for super_admin since they already have global authority
+                    adminContainer.style.display = isSuperAdmin ? 'none' : 'block';
                 }
             });
         }

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Services\UserManagement;
 
 use App\Models\Role;
+use App\Models\StudyProgram;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Models\WorkUnit;
 use App\Services\Academic\AcademicMasterDataService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,11 +24,15 @@ class UserManagementService
     /**
      * Retrieve paginated users with relationships and optional search/filters.
      *
-     * @param  array{search?: ?string, role?: ?string, status?: ?string}  $filters
+     * @param  array{search?: ?string, role?: ?string, unit?: ?string, is_admin?: ?string, is_active?: ?string}  $filters
      */
     public function getPaginatedUsers(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        $query = User::with(['profile', 'roles'])->latest();
+        $query = User::with([
+            'profile.workUnit',
+            'profile.studyProgram.faculty',
+            'roles',
+        ])->latest();
 
         // Search Filter (Email, Full Name, or Identification Number)
         if (! empty($filters['search'])) {
@@ -35,9 +41,7 @@ class UserManagementService
                 $q->where('email', 'like', "%{$searchTerm}%")
                     ->orWhereHas('profile', function (Builder $profileQuery) use ($searchTerm): void {
                         $profileQuery->where('nama_lengkap', 'like', "%{$searchTerm}%")
-                            ->orWhere('nomor_induk', 'like', "%{$searchTerm}%")
-                            ->orWhere('fakultas', 'like', "%{$searchTerm}%")
-                            ->orWhere('program_studi', 'like', "%{$searchTerm}%");
+                            ->orWhere('nomor_induk', 'like', "%{$searchTerm}%");
                     });
             });
         }
@@ -47,9 +51,19 @@ class UserManagementService
             $query->whereHas('roles', fn (Builder $q) => $q->where('name', $filters['role']));
         }
 
-        // Filter by Academic Status
-        if (! empty($filters['status'])) {
-            $query->whereHas('profile', fn (Builder $q) => $q->where('status_akademik', $filters['status']));
+        // Filter by Work Unit
+        if (! empty($filters['unit'])) {
+            $query->whereHas('profile', fn (Builder $q) => $q->where('work_unit_id', $filters['unit']));
+        }
+
+        // Filter by Admin Status
+        if (isset($filters['is_admin']) && $filters['is_admin'] !== '') {
+            $query->where('is_admin', filter_var($filters['is_admin'], FILTER_VALIDATE_BOOLEAN));
+        }
+
+        // Filter by Active Account State
+        if (isset($filters['is_active']) && $filters['is_active'] !== '') {
+            $query->where('is_active', filter_var($filters['is_active'], FILTER_VALIDATE_BOOLEAN));
         }
 
         return $query->paginate($perPage)->withQueryString();
@@ -64,45 +78,48 @@ class UserManagementService
     {
         return DB::transaction(function () use ($data): User {
             $roleName = (string) $data['role'];
+            $isAdmin = (bool) ($data['is_admin'] ?? false);
 
-            // 1. Create Core Authentication User (UUID PK)
+            // 1. Resolve Work Unit or Study Program ID
+            $workUnitId = null;
+            $studyProgramId = null;
+
+            if (in_array($roleName, ['dosen', 'mahasiswa'], true)) {
+                $rawProdi = $data['study_program_id'] ?? ($data['program_studi'] ?? null);
+                if ($rawProdi) {
+                    $studyProgramId = is_numeric($rawProdi)
+                        ? (int) $rawProdi
+                        : StudyProgram::where('code', $rawProdi)->orWhere('name', $rawProdi)->value('id');
+                }
+            } else {
+                $rawUnit = $data['work_unit_id'] ?? ($data['unit_kerja'] ?? null);
+                if ($rawUnit) {
+                    $workUnitId = is_numeric($rawUnit)
+                        ? (int) $rawUnit
+                        : WorkUnit::where('code', $rawUnit)->orWhere('name', $rawUnit)->value('id');
+                }
+            }
+
+            // 2. Create Core Authentication User (UUID PK)
             /** @var User $user */
             $user = User::create([
                 'email' => $data['email'],
                 'password' => Hash::make((string) $data['password']),
                 'is_active' => $data['is_active'] ?? true,
+                'is_admin' => $isAdmin,
             ]);
 
-            // 2. Attach Primary Civitas Role & Optional Admin Roles
+            // 3. Attach Role
             $role = Role::where('name', $roleName)->firstOrFail();
-            $user->roles()->attach($role->id);
-
-            if (! empty($data['admin_roles'])) {
-                $adminRoles = Role::whereIn('name', (array) $data['admin_roles'])->get();
-                $user->roles()->syncWithoutDetaching($adminRoles->pluck('id'));
-            }
-
-            // 3. Resolve Role-Specific Demographic Data
-            $fakultas = null;
-            $programStudi = null;
-            $unitKerja = null;
-            $statusAkademik = $data['status_akademik'] ?? 'aktif';
-
-            if (in_array($roleName, ['dosen', 'mahasiswa'], true)) {
-                $programStudi = $data['program_studi'] ?? null;
-                $fakultas = $data['fakultas']
-                    ?? ($programStudi ? $this->academicService->getFacultyByProgram($programStudi) : null);
-            } else {
-                $unitKerja = $data['unit_kerja'] ?? null;
-            }
+            $user->roles()->sync([$role->id]);
 
             // 4. Resolve or Auto-Generate Nomor Induk
             $nomorInduk = ! empty($data['nomor_induk'])
                 ? (string) $data['nomor_induk']
                 : $this->academicService->generateNomorInduk(
                     role: $roleName,
-                    programStudi: $programStudi,
-                    unitKerja: $unitKerja,
+                    studyProgram: $studyProgramId,
+                    workUnit: $workUnitId,
                 );
 
             // 5. Create Master Demographic Profile (Triggers UserProfileObserver::created)
@@ -110,44 +127,49 @@ class UserManagementService
                 'user_id' => $user->id,
                 'nama_lengkap' => $data['nama_lengkap'],
                 'nomor_induk' => $nomorInduk,
-                'unit_kerja' => $unitKerja,
-                'fakultas' => $fakultas,
-                'program_studi' => $programStudi,
-                'status_akademik' => $statusAkademik,
+                'work_unit_id' => $workUnitId,
+                'study_program_id' => $studyProgramId,
             ]);
 
-            return $user->load(['profile', 'roles']);
+            return $user->load(['profile.workUnit', 'profile.studyProgram.faculty', 'roles']);
         });
     }
 
     /**
-     * Update user's academic status and account active state inside a database transaction.
+     * Update user's active state and admin status inside a database transaction.
      */
-    public function updateUserStatus(User $user, string $statusAkademik, ?bool $isActive = null): User
+    public function updateUserStatus(User $user, ?bool $isActive = null, ?bool $isAdmin = null): User
     {
-        return DB::transaction(function () use ($user, $statusAkademik, $isActive): User {
-            // Update or create demographic profile status (Triggers UserProfileObserver::updated)
-            if ($user->profile) {
-                $user->profile->update([
-                    'status_akademik' => $statusAkademik,
-                ]);
-            } else {
-                UserProfile::create([
-                    'user_id' => $user->id,
-                    'nama_lengkap' => $user->email,
-                    'status_akademik' => $statusAkademik,
-                ]);
-            }
+        return DB::transaction(function () use ($user, $isActive, $isAdmin): User {
+            $updates = [];
 
-            // Update account active status if provided
             if ($isActive !== null) {
-                $user->update([
-                    'is_active' => $isActive,
-                ]);
+                $updates['is_active'] = $isActive;
             }
 
-            return $user->fresh(['profile', 'roles']);
+            if ($isAdmin !== null) {
+                $updates['is_admin'] = $isAdmin;
+            }
+
+            if (! empty($updates)) {
+                $user->update($updates);
+            }
+
+            // Touch profile if exists to trigger UserProfileObserver broadcast
+            if ($user->profile) {
+                $user->profile->touch();
+            }
+
+            return $user->fresh(['profile.workUnit', 'profile.studyProgram.faculty', 'roles']);
         });
+    }
+
+    /**
+     * Toggle or set admin status for user.
+     */
+    public function toggleAdminStatus(User $user, bool $isAdmin): User
+    {
+        return $this->updateUserStatus($user, null, $isAdmin);
     }
 
     /**
@@ -156,28 +178,5 @@ class UserManagementService
     public function deleteUser(User $user): bool
     {
         return (bool) $user->delete();
-    }
-
-    /**
-     * Update administrative roles assigned to a user while preserving civitas identity role.
-     *
-     * @param  array<int, string>  $adminRoleNames
-     */
-    public function updateUserAdminRoles(User $user, array $adminRoleNames): User
-    {
-        return DB::transaction(function () use ($user, $adminRoleNames): User {
-            $civitasRole = $user->getCivitasRole();
-            $civitasRoleId = $civitasRole?->id;
-
-            $targetAdminRoleIds = Role::whereIn('name', $adminRoleNames)->pluck('id');
-
-            $allRoleIds = $civitasRoleId
-                ? $targetAdminRoleIds->push($civitasRoleId)->unique()->values()
-                : $targetAdminRoleIds->unique()->values();
-
-            $user->roles()->sync($allRoleIds);
-
-            return $user->fresh(['profile', 'roles']);
-        });
     }
 }

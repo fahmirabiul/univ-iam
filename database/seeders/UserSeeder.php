@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use App\Models\Role;
+use App\Models\StudyProgram;
 use App\Models\User;
 use App\Models\UserProfile;
+use App\Models\WorkUnit;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -20,161 +22,155 @@ class UserSeeder extends Seeder
     {
         $defaultPassword = Hash::make('password');
 
+        // Resolve Units
+        $unitSdm = WorkUnit::where('code', '502')->first();
+        $unitLppm = WorkUnit::where('code', '503')->first();
+        $unitTik = WorkUnit::where('code', '501')->first();
+
+        // Resolve Study Programs
+        $prodiIf = StudyProgram::where('code', '101')->first();
+        $prodiEl = StudyProgram::where('code', '102')->first();
+        $prodiMn = StudyProgram::where('code', '201')->first();
+        $prodiAk = StudyProgram::where('code', '202')->first();
+        $prodiDi = StudyProgram::where('code', '301')->first();
+        $prodiDkv = StudyProgram::where('code', '302')->first();
+
         $usersData = [
-            // Super Admin (Karyawan + Super Admin)
+            // 1. Super Administrator
             [
                 'email' => 'superadmin@univ.ac.id',
-                'roles' => ['karyawan', 'super_admin'],
+                'role' => 'super_admin',
+                'is_admin' => false,
                 'profile' => [
                     'nama_lengkap' => 'Super Administrator',
                     'nomor_induk' => 'SA-001',
-                    'unit_kerja' => 'Pusat Teknologi Informasi (BSI)',
-                    'fakultas' => null,
-                    'program_studi' => null,
-                    'status_akademik' => 'aktif',
+                    'work_unit_id' => $unitTik?->id,
+                    'study_program_id' => null,
                 ],
             ],
-            // Admin SDM (Karyawan + Admin SDM)
+            // 2. Admin Unit SDM
             [
                 'email' => 'sdm@univ.ac.id',
-                'roles' => ['karyawan', 'admin_sdm'],
+                'role' => 'karyawan',
+                'is_admin' => true,
                 'profile' => [
                     'nama_lengkap' => 'Budi Santoso, S.Kom.',
-                    'nomor_induk' => 'SDM-19850101',
-                    'unit_kerja' => 'Biro Kepegawaian & SDM',
-                    'fakultas' => null,
-                    'program_studi' => null,
-                    'status_akademik' => 'aktif',
+                    'nomor_induk' => '20265020001',
+                    'work_unit_id' => $unitSdm?->id,
+                    'study_program_id' => null,
                 ],
             ],
-            // Admin LPPM (Karyawan + Admin LPPM)
+            // 3. Admin Unit LPPM
             [
                 'email' => 'lppm@univ.ac.id',
-                'roles' => ['karyawan', 'admin_lppm'],
+                'role' => 'karyawan',
+                'is_admin' => true,
                 'profile' => [
                     'nama_lengkap' => 'Suryo Utomo, S.T.',
-                    'nomor_induk' => 'LPPM-202001',
-                    'unit_kerja' => 'LPPM',
-                    'fakultas' => null,
-                    'program_studi' => null,
-                    'status_akademik' => 'aktif',
+                    'nomor_induk' => '20265030001',
+                    'work_unit_id' => $unitLppm?->id,
+                    'study_program_id' => null,
                 ],
             ],
-            // Dosen
+            // 4. Admin Unit TIK
             [
-                'email' => 'fahmi.dosen@univ.ac.id',
-                'roles' => ['dosen'],
+                'email' => 'tik@univ.ac.id',
+                'role' => 'karyawan',
+                'is_admin' => true,
                 'profile' => [
-                    'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
-                    'nomor_induk' => '0412058801',
-                    'unit_kerja' => null,
-                    'fakultas' => 'Fakultas Teknologi Informasi',
-                    'program_studi' => 'Teknik Informatika',
-                    'status_akademik' => 'aktif',
+                    'nama_lengkap' => 'Anwar Sanusi, M.Kom.',
+                    'nomor_induk' => '20265010001',
+                    'work_unit_id' => $unitTik?->id,
+                    'study_program_id' => null,
                 ],
             ],
-            [
-                'email' => 'siti.dosen@univ.ac.id',
-                'roles' => ['dosen'],
-                'profile' => [
-                    'nama_lengkap' => 'Dr. Siti Aminah, M.T.',
-                    'nomor_induk' => '0415088902',
-                    'unit_kerja' => null,
-                    'fakultas' => 'Fakultas Teknologi Informasi',
-                    'program_studi' => 'Sistem Informasi',
-                    'status_akademik' => 'studi_lanjut',
-                ],
-            ],
-            [
-                'email' => 'hendra.dosen@univ.ac.id',
-                'roles' => ['dosen'],
-                'profile' => [
-                    'nama_lengkap' => 'Hendra Wijaya, S.E., M.M.',
-                    'nomor_induk' => '0420118503',
-                    'unit_kerja' => null,
-                    'fakultas' => 'Fakultas Ekonomi dan Bisnis',
-                    'program_studi' => 'Manajemen',
-                    'status_akademik' => 'aktif',
-                ],
-            ],
-            // Mahasiswa
-            [
-                'email' => 'ahmad.mhs@univ.ac.id',
-                'roles' => ['mahasiswa'],
-                'profile' => [
-                    'nama_lengkap' => 'Ahmad Fauzi',
-                    'nomor_induk' => '220101001',
-                    'unit_kerja' => null,
-                    'fakultas' => 'Fakultas Teknologi Informasi',
-                    'program_studi' => 'Teknik Informatika',
-                    'status_akademik' => 'aktif',
-                ],
-            ],
-            [
-                'email' => 'dewi.mhs@univ.ac.id',
-                'roles' => ['mahasiswa'],
-                'profile' => [
-                    'nama_lengkap' => 'Dewi Lestari',
-                    'nomor_induk' => '220102015',
-                    'unit_kerja' => null,
-                    'fakultas' => 'Fakultas Teknologi Informasi',
-                    'program_studi' => 'Sistem Informasi',
-                    'status_akademik' => 'cuti',
-                ],
-            ],
-            [
-                'email' => 'rizky.mhs@univ.ac.id',
-                'roles' => ['mahasiswa'],
-                'profile' => [
-                    'nama_lengkap' => 'Rizky Pratama',
-                    'nomor_induk' => '230201045',
-                    'unit_kerja' => null,
-                    'fakultas' => 'Fakultas Ekonomi dan Bisnis',
-                    'program_studi' => 'Manajemen',
-                    'status_akademik' => 'aktif',
-                ],
-            ],
-            // Karyawan / Tendik
+            // 5. Staf Biasa (Bukan Admin)
             [
                 'email' => 'rina.staff@univ.ac.id',
-                'roles' => ['karyawan'],
+                'role' => 'karyawan',
+                'is_admin' => false,
                 'profile' => [
                     'nama_lengkap' => 'Rina Wulandari, A.Md.',
-                    'nomor_induk' => 'TDK-201801',
-                    'unit_kerja' => 'Biro Keuangan',
-                    'fakultas' => null,
-                    'program_studi' => null,
-                    'status_akademik' => 'aktif',
+                    'nomor_induk' => '20265020002',
+                    'work_unit_id' => $unitSdm?->id,
+                    'study_program_id' => null,
                 ],
             ],
             [
                 'email' => 'agus.staff@univ.ac.id',
-                'roles' => ['karyawan'],
+                'role' => 'karyawan',
+                'is_admin' => false,
                 'profile' => [
                     'nama_lengkap' => 'Agus Setiawan, S.Sos.',
-                    'nomor_induk' => 'TDK-201904',
-                    'unit_kerja' => 'Biro Administrasi Akademik',
-                    'fakultas' => null,
-                    'program_studi' => null,
-                    'status_akademik' => 'aktif',
+                    'nomor_induk' => '20265030002',
+                    'work_unit_id' => $unitLppm?->id,
+                    'study_program_id' => null,
+                ],
+            ],
+            // 6. Dosen Pengajar
+            [
+                'email' => 'fahmi.dosen@univ.ac.id',
+                'role' => 'dosen',
+                'is_admin' => false,
+                'profile' => [
+                    'nama_lengkap' => 'Dr. Fahmi R., M.Kom.',
+                    'nomor_induk' => '202610110001',
+                    'work_unit_id' => null,
+                    'study_program_id' => $prodiIf?->id,
+                ],
+            ],
+            [
+                'email' => 'hendra.dosen@univ.ac.id',
+                'role' => 'dosen',
+                'is_admin' => false,
+                'profile' => [
+                    'nama_lengkap' => 'Hendra Wijaya, S.E., M.M.',
+                    'nomor_induk' => '202620110001',
+                    'work_unit_id' => null,
+                    'study_program_id' => $prodiMn?->id,
+                ],
+            ],
+            // 7. Mahasiswa
+            [
+                'email' => 'ahmad.mhs@univ.ac.id',
+                'role' => 'mahasiswa',
+                'is_admin' => false,
+                'profile' => [
+                    'nama_lengkap' => 'Ahmad Fauzi',
+                    'nomor_induk' => '2611010001',
+                    'work_unit_id' => null,
+                    'study_program_id' => $prodiIf?->id,
+                ],
+            ],
+            [
+                'email' => 'rizky.mhs@univ.ac.id',
+                'role' => 'mahasiswa',
+                'is_admin' => false,
+                'profile' => [
+                    'nama_lengkap' => 'Rizky Pratama',
+                    'nomor_induk' => '2612010001',
+                    'work_unit_id' => null,
+                    'study_program_id' => $prodiMn?->id,
                 ],
             ],
         ];
 
         DB::transaction(function () use ($usersData, $defaultPassword): void {
             foreach ($usersData as $item) {
-                $user = User::firstOrCreate(
+                $user = User::updateOrCreate(
                     ['email' => $item['email']],
                     [
                         'password' => $defaultPassword,
                         'is_active' => true,
+                        'is_admin' => $item['is_admin'],
                         'email_verified_at' => now(),
                     ]
                 );
 
-                $roleNames = (array) ($item['roles'] ?? [$item['role']]);
-                $roleIds = Role::whereIn('name', $roleNames)->pluck('id');
-                $user->roles()->syncWithoutDetaching($roleIds);
+                $role = Role::where('name', $item['role'])->first();
+                if ($role) {
+                    $user->roles()->sync([$role->id]);
+                }
 
                 UserProfile::updateOrCreate(
                     ['user_id' => $user->id],
